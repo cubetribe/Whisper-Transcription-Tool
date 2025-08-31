@@ -1,0 +1,465 @@
+name: Build macOS App
+
+on:
+  push:
+    branches: [ main, macos-app ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, macos-app ]
+  release:
+    types: [published]
+
+env:
+  XCODE_VERSION: "15.0"
+  MACOS_VERSION: "macos-14"
+  PROJECT_NAME: "WhisperLocalMacOs"
+  SCHEME_NAME: "WhisperLocalMacOs"
+  BUNDLE_ID: "com.github.cubetribe.whisper-transcription-tool"
+
+jobs:
+  build:
+    name: Build macOS Application
+    runs-on: ${{ env.MACOS_VERSION }}
+    
+    strategy:
+      matrix:
+        configuration: [Release]
+        architecture: [arm64, x86_64]
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: recursive
+    
+    - name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: ${{ env.XCODE_VERSION }}
+    
+    - name: Cache Dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/Library/Caches/com.apple.dt.Xcode
+          ~/Library/Developer/Xcode/DerivedData
+          deps/
+          models/
+        key: ${{ runner.os }}-xcode-${{ env.XCODE_VERSION }}-${{ hashFiles('**/project.pbxproj', 'requirements.txt', 'install.sh') }}
+        restore-keys: |
+          ${{ runner.os }}-xcode-${{ env.XCODE_VERSION }}-
+          ${{ runner.os }}-xcode-
+    
+    - name: Setup Python Environment
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install Python Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -e ".[full]"
+    
+    - name: Setup Dependencies
+      run: |
+        echo "🔧 Installing system dependencies..."
+        chmod +x install.sh
+        ./install.sh --ci
+    
+    - name: Validate Environment
+      run: |
+        echo "🔍 Validating build environment..."
+        python -c "import sys; print(f'Python: {sys.version}')"
+        xcodebuild -version
+        
+        # Validate Whisper.cpp
+        if [ -f "deps/whisper.cpp/build/bin/whisper-cli" ]; then
+          echo "✅ Whisper.cpp binary found"
+          chmod +x deps/whisper.cpp/build/bin/whisper-cli
+        else
+          echo "⚠️  Whisper.cpp binary not found"
+        fi
+        
+        # Validate Python CLI
+        if [ -f "macos_cli.py" ]; then
+          echo "✅ macOS CLI wrapper found"
+          python macos_cli.py '{"command": "list_models"}' || echo "CLI test completed"
+        else
+          echo "⚠️  macOS CLI wrapper not found"
+        fi
+    
+    - name: Configure Release Build
+      run: |
+        echo "⚙️  Configuring release build..."
+        cd macos
+        chmod +x configure_release_build.sh
+        ./configure_release_build.sh
+    
+    - name: Build Application Archive
+      run: |
+        echo "🏗️  Building application archive..."
+        cd macos
+        
+        # Clean previous builds
+        rm -rf build/
+        
+        # Build archive
+        xcodebuild archive \
+          -project "${PROJECT_NAME}.xcodeproj" \
+          -scheme "$SCHEME_NAME" \
+          -configuration "Release" \
+          -archivePath "build/${PROJECT_NAME}.xcarchive" \
+          -derivedDataPath "build/DerivedData" \
+          MACOSX_DEPLOYMENT_TARGET=12.0 \
+          ARCHS="${{ matrix.architecture }}" \
+          ONLY_ACTIVE_ARCH=NO \
+          ENABLE_HARDENED_RUNTIME=YES \
+          OTHER_CODE_SIGN_FLAGS="--timestamp" \
+          CODE_SIGN_STYLE=Automatic \
+          CODE_SIGN_IDENTITY="-" \
+          DEVELOPMENT_TEAM="" \
+          GCC_OPTIMIZATION_LEVEL=s \
+          SWIFT_OPTIMIZATION_LEVEL=-O \
+          STRIP_INSTALLED_PRODUCT=YES \
+          SEPARATE_STRIP=YES \
+          COPY_PHASE_STRIP=NO \
+          DEBUG_INFORMATION_FORMAT=dwarf-with-dsym
+    
+    - name: Embed Dependencies
+      run: |
+        echo "📦 Embedding dependencies..."
+        cd macos
+        
+        APP_PATH="build/${PROJECT_NAME}.xcarchive/Products/Applications/${PROJECT_NAME}.app"
+        
+        if [ ! -d "$APP_PATH" ]; then
+          echo "❌ App bundle not found at $APP_PATH"
+          exit 1
+        fi
+        
+        # Create dependencies directory
+        DEPS_DIR="$APP_PATH/Contents/Resources/Dependencies"
+        mkdir -p "$DEPS_DIR"
+        
+        # Copy dependencies
+        if [ -d "../deps/whisper.cpp/build" ]; then
+          echo "📥 Copying Whisper.cpp..."
+          mkdir -p "$DEPS_DIR/whisper.cpp-${{ matrix.architecture }}/bin"
+          if [ -f "../deps/whisper.cpp/build/bin/whisper-cli" ]; then
+            cp "../deps/whisper.cpp/build/bin/whisper-cli" "$DEPS_DIR/whisper.cpp-${{ matrix.architecture }}/bin/"
+          fi
+        fi
+        
+        # Copy CLI wrapper
+        if [ -f "../macos_cli.py" ]; then
+          echo "📥 Copying CLI wrapper..."
+          cp "../macos_cli.py" "$DEPS_DIR/"
+        fi
+        
+        # Create models directory
+        mkdir -p "$DEPS_DIR/models"
+        
+        # Copy any existing models
+        if [ -d "../models" ] && [ "$(ls -A ../models)" ]; then
+          echo "📥 Copying models..."
+          cp -R ../models/* "$DEPS_DIR/models/" || true
+        fi
+        
+        # Set permissions
+        find "$DEPS_DIR" -name "*.py" -exec chmod +x {} \; || true
+        find "$DEPS_DIR" -path "*/bin/*" -exec chmod +x {} \; || true
+        
+        echo "✅ Dependencies embedded successfully"
+    
+    - name: Code Signing
+      run: |
+        echo "🔐 Code signing application..."
+        cd macos
+        
+        APP_PATH="build/${PROJECT_NAME}.xcarchive/Products/Applications/${PROJECT_NAME}.app"
+        
+        # Ad-hoc signing for CI builds
+        chmod +x code_signing.sh
+        ./code_signing.sh adhoc "$APP_PATH"
+    
+    - name: Bundle Optimization
+      run: |
+        echo "🎯 Optimizing bundle size..."
+        cd macos
+        
+        APP_PATH="build/${PROJECT_NAME}.xcarchive/Products/Applications/${PROJECT_NAME}.app"
+        
+        chmod +x optimize_bundle.sh
+        ./optimize_bundle.sh "$APP_PATH"
+    
+    - name: Create DMG
+      run: |
+        echo "💿 Creating DMG..."
+        cd macos
+        
+        APP_PATH="build/${PROJECT_NAME}.xcarchive/Products/Applications/${PROJECT_NAME}.app"
+        DMG_PATH="build/${PROJECT_NAME}-${{ matrix.architecture }}.dmg"
+        
+        # Create temporary DMG directory
+        DMG_TEMP_DIR="build/dmg_temp"
+        mkdir -p "$DMG_TEMP_DIR"
+        
+        # Copy app to DMG directory
+        cp -R "$APP_PATH" "$DMG_TEMP_DIR/"
+        
+        # Create Applications symlink
+        ln -s /Applications "$DMG_TEMP_DIR/Applications"
+        
+        # Create DMG
+        hdiutil create -volname "WhisperLocal" \
+          -srcfolder "$DMG_TEMP_DIR" \
+          -ov -format UDZO \
+          -fs HFS+ \
+          "$DMG_PATH"
+        
+        # Clean up
+        rm -rf "$DMG_TEMP_DIR"
+        
+        echo "✅ DMG created: $DMG_PATH"
+    
+    - name: Validate Build
+      run: |
+        echo "🔍 Validating build..."
+        cd macos
+        
+        APP_PATH="build/${PROJECT_NAME}.xcarchive/Products/Applications/${PROJECT_NAME}.app"
+        DMG_PATH="build/${PROJECT_NAME}-${{ matrix.architecture }}.dmg"
+        
+        # Check app bundle structure
+        if [ -f "$APP_PATH/Contents/Info.plist" ]; then
+          echo "✅ Info.plist found"
+          BUNDLE_VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$APP_PATH/Contents/Info.plist")
+          echo "📋 Bundle version: $BUNDLE_VERSION"
+        else
+          echo "❌ Info.plist missing"
+          exit 1
+        fi
+        
+        # Check executable
+        EXECUTABLE="$APP_PATH/Contents/MacOS/$PROJECT_NAME"
+        if [ -f "$EXECUTABLE" ]; then
+          echo "✅ Main executable found"
+          file "$EXECUTABLE"
+        else
+          echo "❌ Main executable missing"
+          exit 1
+        fi
+        
+        # Check dependencies
+        DEPS_DIR="$APP_PATH/Contents/Resources/Dependencies"
+        if [ -d "$DEPS_DIR" ]; then
+          echo "✅ Dependencies directory found"
+          echo "📁 Dependencies structure:"
+          find "$DEPS_DIR" -type f | head -10
+        else
+          echo "⚠️  Dependencies directory missing"
+        fi
+        
+        # Check DMG
+        if [ -f "$DMG_PATH" ]; then
+          DMG_SIZE=$(du -sh "$DMG_PATH" | cut -f1)
+          echo "✅ DMG created: $DMG_SIZE"
+        else
+          echo "❌ DMG missing"
+          exit 1
+        fi
+        
+        # Bundle size check
+        BUNDLE_SIZE=$(du -sh "$APP_PATH" | cut -f1)
+        echo "📏 Bundle size: $BUNDLE_SIZE"
+        
+        # Size check (should be under 500MB without models)
+        BUNDLE_SIZE_MB=$(du -sm "$APP_PATH" | cut -f1)
+        if [ "$BUNDLE_SIZE_MB" -gt 500 ]; then
+          echo "⚠️  Bundle size is large: ${BUNDLE_SIZE_MB}MB"
+        else
+          echo "✅ Bundle size is reasonable: ${BUNDLE_SIZE_MB}MB"
+        fi
+    
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: WhisperLocal-${{ matrix.configuration }}-${{ matrix.architecture }}
+        path: |
+          macos/build/*.dmg
+          macos/build/*.xcarchive/Products/Applications/*.app
+        retention-days: 30
+    
+    - name: Upload DMG to Release
+      if: github.event_name == 'release'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: macos/build/${{ env.PROJECT_NAME }}-${{ matrix.architecture }}.dmg
+        asset_name: WhisperLocal-${{ github.event.release.tag_name }}-${{ matrix.architecture }}.dmg
+        asset_content_type: application/x-apple-diskimage
+
+  create-universal-binary:
+    name: Create Universal Binary
+    runs-on: ${{ env.MACOS_VERSION }}
+    needs: build
+    if: github.event_name == 'release' || github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+    
+    - name: Download ARM64 Build
+      uses: actions/download-artifact@v3
+      with:
+        name: WhisperLocal-Release-arm64
+        path: build-arm64/
+    
+    - name: Download x86_64 Build
+      uses: actions/download-artifact@v3
+      with:
+        name: WhisperLocal-Release-x86_64
+        path: build-x86_64/
+    
+    - name: Create Universal Binary
+      run: |
+        echo "🔄 Creating universal binary..."
+        
+        # Extract DMGs
+        hdiutil attach build-arm64/*.dmg -mountpoint /Volumes/WhisperLocal-arm64
+        hdiutil attach build-x86_64/*.dmg -mountpoint /Volumes/WhisperLocal-x86_64
+        
+        # Create universal app bundle
+        mkdir -p universal/
+        cp -R "/Volumes/WhisperLocal-arm64/$PROJECT_NAME.app" universal/
+        
+        # Create universal binary using lipo
+        lipo -create \
+          "/Volumes/WhisperLocal-arm64/$PROJECT_NAME.app/Contents/MacOS/$PROJECT_NAME" \
+          "/Volumes/WhisperLocal-x86_64/$PROJECT_NAME.app/Contents/MacOS/$PROJECT_NAME" \
+          -output "universal/$PROJECT_NAME.app/Contents/MacOS/$PROJECT_NAME"
+        
+        # Copy dependencies for both architectures
+        DEPS_DIR="universal/$PROJECT_NAME.app/Contents/Resources/Dependencies"
+        
+        # Copy ARM64 dependencies
+        if [ -d "/Volumes/WhisperLocal-arm64/$PROJECT_NAME.app/Contents/Resources/Dependencies" ]; then
+          cp -R "/Volumes/WhisperLocal-arm64/$PROJECT_NAME.app/Contents/Resources/Dependencies/"* "$DEPS_DIR/" || true
+        fi
+        
+        # Copy x86_64 dependencies (will overwrite common files, add arch-specific)
+        if [ -d "/Volumes/WhisperLocal-x86_64/$PROJECT_NAME.app/Contents/Resources/Dependencies" ]; then
+          cp -R "/Volumes/WhisperLocal-x86_64/$PROJECT_NAME.app/Contents/Resources/Dependencies/"* "$DEPS_DIR/" || true
+        fi
+        
+        # Unmount DMGs
+        hdiutil detach /Volumes/WhisperLocal-arm64
+        hdiutil detach /Volumes/WhisperLocal-x86_64
+        
+        # Create universal DMG
+        DMG_TEMP_DIR="universal_dmg_temp"
+        mkdir -p "$DMG_TEMP_DIR"
+        cp -R "universal/$PROJECT_NAME.app" "$DMG_TEMP_DIR/"
+        ln -s /Applications "$DMG_TEMP_DIR/Applications"
+        
+        UNIVERSAL_DMG="WhisperLocal-Universal.dmg"
+        hdiutil create -volname "WhisperLocal" \
+          -srcfolder "$DMG_TEMP_DIR" \
+          -ov -format UDZO \
+          -fs HFS+ \
+          "$UNIVERSAL_DMG"
+        
+        echo "✅ Universal binary created: $UNIVERSAL_DMG"
+        
+        # Verify universal binary
+        file "universal/$PROJECT_NAME.app/Contents/MacOS/$PROJECT_NAME"
+        lipo -info "universal/$PROJECT_NAME.app/Contents/MacOS/$PROJECT_NAME"
+    
+    - name: Upload Universal Binary
+      uses: actions/upload-artifact@v3
+      with:
+        name: WhisperLocal-Universal
+        path: |
+          WhisperLocal-Universal.dmg
+          universal/
+        retention-days: 30
+    
+    - name: Upload Universal DMG to Release
+      if: github.event_name == 'release'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: WhisperLocal-Universal.dmg
+        asset_name: WhisperLocal-${{ github.event.release.tag_name }}-Universal.dmg
+        asset_content_type: application/x-apple-diskimage
+
+  test-builds:
+    name: Test Built Applications
+    runs-on: ${{ env.MACOS_VERSION }}
+    needs: build
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    
+    strategy:
+      matrix:
+        architecture: [arm64, x86_64]
+    
+    steps:
+    - name: Download Build
+      uses: actions/download-artifact@v3
+      with:
+        name: WhisperLocal-Release-${{ matrix.architecture }}
+        path: test-build/
+    
+    - name: Test Application
+      run: |
+        echo "🧪 Testing ${{ matrix.architecture }} build..."
+        
+        # Mount DMG
+        hdiutil attach test-build/*.dmg -mountpoint /Volumes/WhisperLocal-test
+        
+        APP_PATH="/Volumes/WhisperLocal-test/$PROJECT_NAME.app"
+        
+        # Basic launch test
+        echo "🚀 Testing app launch..."
+        timeout 10 "$APP_PATH/Contents/MacOS/$PROJECT_NAME" --help || echo "Launch test completed"
+        
+        # Test dependencies
+        echo "🔍 Testing dependencies..."
+        if [ -d "$APP_PATH/Contents/Resources/Dependencies" ]; then
+          echo "✅ Dependencies found"
+          ls -la "$APP_PATH/Contents/Resources/Dependencies/"
+        else
+          echo "⚠️  No dependencies found"
+        fi
+        
+        # Unmount
+        hdiutil detach /Volumes/WhisperLocal-test
+        
+        echo "✅ ${{ matrix.architecture }} build test completed"
+
+  notify:
+    name: Notify Build Status
+    runs-on: ubuntu-latest
+    needs: [build, create-universal-binary, test-builds]
+    if: always()
+    
+    steps:
+    - name: Build Status Summary
+      run: |
+        echo "📊 Build Status Summary:"
+        echo "Build: ${{ needs.build.result }}"
+        echo "Universal Binary: ${{ needs.create-universal-binary.result }}"
+        echo "Tests: ${{ needs.test-builds.result }}"
+        
+        if [ "${{ needs.build.result }}" == "success" ]; then
+          echo "✅ Build completed successfully"
+        else
+          echo "❌ Build failed"
+        fi

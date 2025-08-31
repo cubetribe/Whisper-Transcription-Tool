@@ -74,6 +74,8 @@ class MacOSCLIWrapper:
                 result = self._handle_download_model(command_data)
             elif command == 'process_batch':
                 result = self._handle_process_batch(command_data)
+            elif command == 'chatbot':
+                result = self._handle_chatbot(command_data)
             else:
                 result = self._create_error_response(
                     f"Unknown command: {command}",
@@ -533,6 +535,182 @@ class MacOSCLIWrapper:
             return self._create_error_response(
                 f"Batch processing failed: {str(e)}",
                 "BATCH_PROCESSING_ERROR"
+            )
+    
+    def _handle_chatbot(self, command_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle chatbot commands for semantic search functionality."""
+        try:
+            # Get chatbot subcommand
+            subcommand = command_data.get('subcommand', '')
+            
+            self.logger.info(f"Processing chatbot subcommand: {subcommand}")
+            
+            if subcommand == 'search':
+                return self._handle_chatbot_search(command_data)
+            elif subcommand == 'index':
+                return self._handle_chatbot_index(command_data)
+            elif subcommand == 'status':
+                return self._handle_chatbot_status(command_data)
+            else:
+                return self._create_error_response(
+                    f"Unknown chatbot subcommand: {subcommand}. Available: search, index, status",
+                    "UNKNOWN_CHATBOT_SUBCOMMAND"
+                )
+                
+        except Exception as e:
+            self.logger.error(f"Chatbot command error: {e}")
+            return self._create_error_response(
+                f"Chatbot command failed: {str(e)}",
+                "CHATBOT_COMMAND_ERROR"
+            )
+    
+    def _handle_chatbot_search(self, command_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle semantic search queries."""
+        try:
+            # Validate required fields
+            required_fields = ['query']
+            missing_fields = [field for field in required_fields if field not in command_data]
+            if missing_fields:
+                return self._create_error_response(
+                    f"Missing required fields: {missing_fields}",
+                    "MISSING_FIELDS"
+                )
+            
+            query = command_data['query']
+            threshold = command_data.get('threshold', 0.3)
+            limit = command_data.get('limit', 10)
+            start_date = command_data.get('start_date', None)
+            end_date = command_data.get('end_date', None)
+            file_extensions = command_data.get('file_extensions', None)
+            
+            # Check if module4_chatbot is available
+            try:
+                from src.whisper_transcription_tool.module4_chatbot import run_chatbot_search
+            except ImportError:
+                return self._create_error_response(
+                    "Chatbot functionality (module4_chatbot) is not available. Please ensure ChromaDB and required dependencies are installed.",
+                    "CHATBOT_UNAVAILABLE"
+                )
+            
+            # Perform semantic search
+            search_results = run_chatbot_search(
+                query=query,
+                threshold=threshold,
+                limit=limit,
+                start_date=start_date,
+                end_date=end_date,
+                file_extensions=file_extensions
+            )
+            
+            # Format results for JSON response
+            formatted_results = []
+            for result in search_results:
+                formatted_result = {
+                    'source_file': result.get('source_file', ''),
+                    'content': result.get('content', ''),
+                    'score': result.get('score', 0.0),
+                    'timestamp': result.get('timestamp', None),
+                    'context': result.get('context', None)
+                }
+                formatted_results.append(formatted_result)
+            
+            return self._create_success_response({
+                'query': query,
+                'results': formatted_results,
+                'total_results': len(formatted_results),
+                'search_parameters': {
+                    'threshold': threshold,
+                    'limit': limit,
+                    'start_date': start_date,
+                    'end_date': end_date,
+                    'file_extensions': file_extensions
+                }
+            })
+            
+        except Exception as e:
+            self.logger.error(f"Chatbot search error: {e}")
+            return self._create_error_response(
+                f"Semantic search failed: {str(e)}",
+                "SEARCH_ERROR"
+            )
+    
+    def _handle_chatbot_index(self, command_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle transcription indexing for semantic search."""
+        try:
+            # Validate required fields
+            required_fields = ['file_path', 'content']
+            missing_fields = [field for field in required_fields if field not in command_data]
+            if missing_fields:
+                return self._create_error_response(
+                    f"Missing required fields: {missing_fields}",
+                    "MISSING_FIELDS"
+                )
+            
+            file_path = command_data['file_path']
+            content = command_data['content']
+            
+            # Check if module4_chatbot is available
+            try:
+                from src.whisper_transcription_tool.module4_chatbot import index_transcription
+            except ImportError:
+                return self._create_error_response(
+                    "Chatbot functionality (module4_chatbot) is not available. Please ensure ChromaDB and required dependencies are installed.",
+                    "CHATBOT_UNAVAILABLE"
+                )
+            
+            # Index the transcription
+            result = index_transcription(file_path=file_path, content=content)
+            
+            return self._create_success_response({
+                'file_path': file_path,
+                'indexed': True,
+                'content_length': len(content),
+                'index_result': result
+            })
+            
+        except Exception as e:
+            self.logger.error(f"Chatbot indexing error: {e}")
+            return self._create_error_response(
+                f"Transcription indexing failed: {str(e)}",
+                "INDEXING_ERROR"
+            )
+    
+    def _handle_chatbot_status(self, command_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Check chatbot/ChromaDB availability and status."""
+        try:
+            status = {
+                'available': False,
+                'chromadb_version': None,
+                'database_path': None,
+                'indexed_documents': 0,
+                'error': None
+            }
+            
+            try:
+                # Try to import and initialize chatbot module
+                from src.whisper_transcription_tool.module4_chatbot import get_chatbot_status
+                chatbot_status = get_chatbot_status()
+                
+                status.update(chatbot_status)
+                status['available'] = True
+                
+            except ImportError as e:
+                status['error'] = f"Module not available: {str(e)}"
+                status['available'] = False
+            except Exception as e:
+                status['error'] = f"Chatbot initialization failed: {str(e)}"
+                status['available'] = False
+            
+            return self._create_success_response({
+                'chatbot_status': status,
+                'timestamp': self._get_timestamp()
+            })
+            
+        except Exception as e:
+            self.logger.error(f"Chatbot status check error: {e}")
+            return self._create_error_response(
+                f"Status check failed: {str(e)}",
+                "STATUS_CHECK_ERROR"
             )
     
     def _is_supported_audio_format(self, file_path: Path) -> bool:
@@ -1045,17 +1223,59 @@ def main():
     """
     Main entry point for the CLI wrapper.
     
-    Reads JSON command from stdin and outputs JSON response to stdout.
-    This allows for seamless communication with the Swift application.
+    Supports two modes:
+    1. JSON commands from stdin (original mode)
+    2. Command line arguments for chatbot commands (chatbot subcommand --args)
     """
-    if len(sys.argv) > 1:
-        # Command provided as argument
+    wrapper = MacOSCLIWrapper()
+    
+    # Check if this is a chatbot command line call
+    if len(sys.argv) > 1 and sys.argv[1] == 'chatbot':
+        # Handle chatbot command line format: python macos_cli.py chatbot search --query "text" --threshold 0.3
+        command_data = {
+            'command': 'chatbot',
+            'subcommand': sys.argv[2] if len(sys.argv) > 2 else ''
+        }
+        
+        # Parse remaining arguments
+        i = 3
+        while i < len(sys.argv) - 1:
+            arg = sys.argv[i]
+            value = sys.argv[i + 1]
+            
+            if arg == '--query':
+                command_data['query'] = value
+            elif arg == '--threshold':
+                command_data['threshold'] = float(value)
+            elif arg == '--limit':
+                command_data['limit'] = int(value)
+            elif arg == '--file':
+                command_data['file_path'] = value
+            elif arg == '--content':
+                command_data['content'] = value
+            elif arg == '--format':
+                # Format is always JSON for macOS integration
+                pass
+            
+            i += 2
+        
+        # Convert to JSON string for processing
+        command_json = json.dumps(command_data)
+    elif len(sys.argv) > 1:
+        # Single argument is JSON command
         command_json = sys.argv[1]
     else:
         # Command provided via stdin
-        command_json = sys.stdin.read()
+        command_json = sys.stdin.read().strip()
+        if not command_json:
+            # No input provided
+            error_response = wrapper._create_error_response(
+                "No command provided via stdin or arguments",
+                "NO_COMMAND"
+            )
+            print(json.dumps(error_response))
+            return
     
-    wrapper = MacOSCLIWrapper()
     result = wrapper.handle_command(command_json)
     
     # Output JSON result to stdout

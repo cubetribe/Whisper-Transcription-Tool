@@ -1,99 +1,55 @@
-# Whisper Transcription Tool v0.9.3
+# Whisper Transcription Tool
 
-Ein modulares Python-Tool zur Transkription und Auswertung von Audio- und Videodaten mit Whisper.cpp, vollständig portabel und plattformunabhängig mit automatischer Audioextraktion.
+🎙️ **A powerful, modular Python tool for audio/video transcription using Whisper.cpp**
 
-## 🎯 Neue Features in v0.9.3
-- **Automatische Cleanup-Funktion**: Temp-Verzeichnis wird nach erfolgreicher Transkription automatisch bereinigt
-- **Bugfixes**: WebSocket-Konflikte und Event-System-Probleme behoben
-- **Verbesserte Stabilität**: Rückkehr zur bewährten async Event-Handler Implementierung
+[![Version](https://img.shields.io/badge/version-0.9.4.2-blue.svg)](https://github.com/cubetribe/Whisper-Transcription-Tool)
+[![Python](https://img.shields.io/badge/python-3.8%2B-green.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
-## 🚀 Schnellstart
+## ✨ Features
 
-### Direkte Ausführung (empfohlen)
+- 🚀 **Local transcription** with Whisper.cpp (no API needed)
+- 🍎 **Optimized for Apple Silicon** Macs
+- 🌐 **Web interface** with real-time progress updates
+- 📁 **Batch processing** for multiple files
+- 🎬 **Video support** with automatic audio extraction
+- 📄 **Multiple output formats** (TXT, SRT, VTT, JSON)
+- 🧹 **Automatic cleanup** of temporary files
+
+## 🚀 Quick Start
+
 ```bash
-# Im Projektverzeichnis:
-source venv_new/bin/activate
-python -m src.whisper_transcription_tool.main web --port 8090
-```
+# Clone the repository
+git clone https://github.com/cubetribe/Whisper-Transcription-Tool.git
+cd Whisper-Transcription-Tool
 
-### Mit Startskript
-```bash
-# Im Projektverzeichnis:
+# Install dependencies
+pip install -r requirements.txt
+
+# Start the web server
 ./scripts/start_server.sh
 ```
 
-### Mit Launcher (GUI)
-Doppelklick auf: `scripts/QuickLauncher.command`
+Then open http://localhost:8090 in your browser.
 
-Dann öffnen: http://localhost:8090
+## 📖 Documentation
 
-## 📁 Projektstruktur
+See the [full documentation](documentation/README.md) for detailed setup and usage instructions.
 
-```
-whisper_clean/
-├── src/                          # Hauptquellcode
-│   └── whisper_transcription_tool/
-├── scripts/                      # Alle Skripte und Launcher
-├── documentation/                # Vollständige Dokumentation
-├── requirements.txt              # Python-Abhängigkeiten
-├── setup.py                     # Python-Paket-Setup
-└── README.md                    # Diese Datei
-```
+## 🛠️ Requirements
 
-## 🔧 Installation
+- Python 3.8+
+- FFmpeg (for video processing)
+- macOS (optimized for Apple Silicon)
 
-```bash
-# 1. Abhängigkeiten installieren
-pip install -r requirements.txt
+## 📝 License
 
-# 2. Entwicklungsmodus installieren
-pip install -e ".[web]"
+MIT License - see [LICENSE](LICENSE) file for details.
 
-# 3. Whisper-Binary ausführbar machen
-chmod +x deps/whisper.cpp/build/bin/whisper-cli
-```
+## 🤝 Contributing
 
-## 📖 Dokumentation
-
-Vollständige Dokumentation in `documentation/`:
-- `README.md` - Detaillierte Anleitung
-- `CLAUDE.md` - Claude Code Spezifikationen
-- `INSTALLATION.md` - Setup-Anleitung
-- `DEPLOYMENT_STATUS.md` - Aktueller Status
-
-## 🎯 Features
-
-- ✅ **Lokale Transkription** mit Whisper.cpp (Apple Silicon optimiert)
-- ✅ **Video-Extraktion** mit FFmpeg
-- ✅ **Web-Interface** mit Echtzeit-Updates
-- ✅ **Modulare Architektur** mit 4 Hauptmodulen
-- ✅ **Batch-Verarbeitung** für mehrere Dateien
-- ✅ **Mehrere Ausgabeformate** (TXT, SRT, VTT)
-
-## 🔧 Troubleshooting & Bekannte Probleme
-
-### WebSocket Progress Updates
-**Problem**: Fortschrittsbalken wird nicht angezeigt  
-**Lösung**: Server neu starten, Browser-Cache leeren
-
-### Cancel-Funktion
-**Problem**: Abbruch-Button reagiert nicht sofort  
-**Temporäre Lösung**: Server-Neustart bei hängenden Prozessen
-
-### Technische Details für Entwickler
-Die WebSocket-Implementierung nutzt async Event-Handler. Bei Problemen:
-1. Prüfen ob nur ein `/ws/progress` Endpoint existiert
-2. Sicherstellen dass `progress_event_handler` async ist
-3. Keine sync/async Bridge-Worker verwenden
-
-Details siehe [CHANGELOG.md](CHANGELOG.md)
-
-## 📞 Support
-
-- GitHub Issues: [whisper_clean_V1](https://github.com/cubetribe/whisper_clean_V1)
-- Dokumentation: `documentation/` Verzeichnis
-- Changelog: [CHANGELOG.md](CHANGELOG.md)
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
-**Version:** 0.9.3 | **Status:** Production Ready ✅
+Made with ❤️ for the transcription community

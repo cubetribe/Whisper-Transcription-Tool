@@ -1,100 +1,142 @@
-# Project Structure
+---
+inclusion: always
+---
 
-## Directory Organization
+# Architecture & Code Structure Rules
 
-```
-whisper_clean/
-├── src/                          # Main source code
-│   └── whisper_transcription_tool/
-│       ├── core/                 # Shared functionality
-│       ├── module1_transcribe/   # Audio transcription
-│       ├── module2_extract/      # Video-to-audio extraction
-│       ├── module3_phone/        # Phone call processing
-│       ├── module4_chatbot/      # Transcript analysis
-│       ├── web/                  # Web interface
-│       └── main.py              # CLI entry point
-├── deps/                         # External dependencies
-│   └── whisper.cpp/             # Whisper.cpp submodule
-├── models/                       # Whisper model files
-├── transcriptions/               # Output directory
-│   └── temp/                    # Temporary files
-├── recordings/                   # Input audio/video files
-├── scripts/                      # Launch and utility scripts
-├── documentation/                # Project documentation
-└── venv_new/                    # Virtual environment
+## Import Patterns (Strictly Enforced)
+
+### Core Module Imports
+```python
+# Always use absolute imports for core functionality
+from whisper_transcription_tool.core import config, models, exceptions
+from whisper_transcription_tool.core.logging_setup import setup_logging
+
+# Never import core modules relatively
 ```
 
-## Module Architecture
+### Module-Internal Imports
+```python
+# Within modules, use relative imports
+from .whisper_wrapper import WhisperWrapper
+from .output_formatter import OutputFormatter
 
-### Core Module (`src/whisper_transcription_tool/core/`)
-- `config.py` - Configuration management with dynamic path resolution
-- `models.py` - Data models and enums (WhisperModel, OutputFormat)
-- `exceptions.py` - Custom exception classes
-- `logging_setup.py` - Centralized logging configuration
-- `utils.py` - Shared utility functions
-- `constants.py` - Application constants
-- `events.py` - Event system for module communication
+# Cross-module imports use absolute paths
+from whisper_transcription_tool.module1_transcribe import WhisperWrapper
+```
 
-### Module 1: Transcription (`module1_transcribe/`)
-- `whisper_wrapper.py` - Whisper.cpp integration
-- `model_manager.py` - Model download and management
-- `output_formatter.py` - Format conversion (TXT, SRT, VTT)
+## Directory Structure (Fixed Locations)
 
-### Module 2: Extraction (`module2_extract/`)
-- `ffmpeg_wrapper.py` - FFmpeg integration
-- `video_utils.py` - Video processing utilities
+```
+src/whisper_transcription_tool/
+├── core/                    # Shared functionality (config, logging, exceptions)
+├── module1_transcribe/      # Audio transcription logic
+├── module2_extract/         # Video-to-audio extraction
+├── module3_phone/          # Live recording and phone calls
+├── module4_chatbot/        # Optional semantic search
+├── web/                    # FastAPI web interface
+└── main.py                 # CLI entry point
 
-### Module 3: Phone Processing (`module3_phone/`)
-- `recorder.py` - Audio recording with BlackHole
-- `audio_processing.py` - Dual-track audio handling
-- `transcript_processing.py` - Dialog formatting
-- `cli.py` - Phone-specific CLI interface
+transcriptions/             # Output files
+├── temp/                   # Temporary files (auto-cleanup)
+└── *.txt, *.srt, *.vtt    # Final transcription outputs
 
-### Module 4: Chatbot (`module4_chatbot/`)
-- `llm_manager.py` - Local LLM integration
-- `vector_db.py` - Vector database for semantic search
+models/                     # Whisper model files
+deps/whisper.cpp/          # External Whisper.cpp dependency
+```
 
-### Web Interface (`web/`)
-- `templates/` - Jinja2 HTML templates
-- `static/` - CSS, JavaScript, assets
-- `phone_routes.py` - Phone-specific web routes
-- `compare_utils.py` - Transcript comparison utilities
+## Code Style (Non-Negotiable)
 
-## File Naming Conventions
+### Naming Conventions
+- **Files**: `snake_case.py`
+- **Classes**: `PascalCase` (e.g., `WhisperWrapper`, `AudioProcessor`)
+- **Functions/Variables**: `snake_case` (e.g., `process_audio`, `file_path`)
+- **Constants**: `UPPER_SNAKE_CASE` (e.g., `DEFAULT_MODEL_PATH`)
 
-- **Python modules**: `snake_case.py`
-- **Classes**: `PascalCase`
-- **Functions/variables**: `snake_case`
-- **Constants**: `UPPER_SNAKE_CASE`
-- **Configuration files**: `.json` or `.yaml`
-- **Scripts**: `.sh`, `.command`, `.py`
+### Type Hints (Required)
+```python
+from typing import Optional, List, Dict, Union
+from pathlib import Path
 
-## Import Structure
+def process_file(input_path: Path, output_dir: Optional[Path] = None) -> Dict[str, str]:
+    """Always include type hints and docstrings."""
+    pass
+```
 
-- **Relative imports** within modules: `from .core import config`
-- **Absolute imports** for cross-module: `from whisper_transcription_tool.core import config`
-- **Entry point**: `python -m src.whisper_transcription_tool.main`
+### Error Handling Pattern
+```python
+from whisper_transcription_tool.core.exceptions import TranscriptionError, ModelNotFoundError
 
-## Configuration Hierarchy
+# Always use custom exceptions with descriptive messages
+raise TranscriptionError(f"Failed to process {file_path}: {error_details}")
+```
 
-1. **Default config** in `core/config.py`
-2. **User config** at `~/.whisper_tool.json`
-3. **Project config** (if specified via `--config`)
-4. **Command-line arguments** (highest priority)
+## Architecture Patterns
 
-## Output Organization
+### Configuration Management
+```python
+# Always use the centralized config system
+from whisper_transcription_tool.core import config
 
-- **Transcriptions**: `transcriptions/` directory
-- **Temporary files**: `transcriptions/temp/`
-- **Models**: `models/` directory
-- **Logs**: Configured via logging setup
-- **Backups**: `Backups/` directory (version-specific)
+# Priority order: CLI args → --config file → ~/.whisper_tool.json → defaults
+settings = config.load_config(config_path=args.config)
+```
 
-## Development Patterns
+### Progress Tracking
+```python
+# CLI: Always use tqdm
+from tqdm import tqdm
+for item in tqdm(items, desc="Processing files"):
+    process_item(item)
 
-- **Modular design**: Each module is self-contained
-- **Configuration-driven**: Behavior controlled via config files
-- **Error handling**: Custom exceptions with detailed messages
-- **Logging**: Centralized logging with configurable levels
-- **Type hints**: Used throughout for better IDE support
-- **Async/await**: Used in web interface for non-blocking operations
+# Web: Use WebSocket updates
+await websocket.send_json({"progress": 50, "status": "processing"})
+```
+
+### Resource Management
+```python
+# Always use context managers
+with open(file_path, 'r') as f:
+    content = f.read()
+
+# For external processes
+with subprocess.Popen([...]) as proc:
+    output = proc.communicate()
+```
+
+## Module Communication
+
+### Event System Usage
+```python
+from whisper_transcription_tool.core.events import EventBus
+
+# Publish events for cross-module communication
+EventBus.publish("transcription_started", {"file": file_path})
+EventBus.subscribe("transcription_completed", callback_function)
+```
+
+### Async/Sync Boundaries
+- **Web interface**: Use `async/await` throughout
+- **CLI operations**: Synchronous unless explicitly needed
+- **File I/O**: Synchronous (use `pathlib.Path`)
+- **External processes**: Synchronous with `subprocess`
+
+## Entry Point Rules
+
+### CLI Execution
+```bash
+# Always use module execution (never direct script calls)
+python -m src.whisper_transcription_tool.main transcribe file.mp3
+
+# Never use
+python src/whisper_transcription_tool/main.py
+```
+
+### File Path Handling
+```python
+from pathlib import Path
+
+# Always use Path objects for file operations
+input_path = Path(args.input_file).resolve()
+output_dir = Path("transcriptions")
+```

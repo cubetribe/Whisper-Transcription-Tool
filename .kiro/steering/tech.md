@@ -1,105 +1,103 @@
-# Technology Stack
+---
+inclusion: always
+---
 
-## Core Technologies
+# Technology Stack & Development Guidelines
 
-- **Python 3.11+** - Primary development language
-- **Whisper.cpp** - Local audio transcription engine (Apple Silicon optimized)
-- **FFmpeg** - Video-to-audio extraction and processing
-- **FastAPI** - Web framework for REST API and web interface
-- **WebSockets** - Real-time communication for progress updates
-- **Uvicorn** - ASGI server for web application
+## Core Technology Stack
 
-## Key Dependencies
+**Runtime**: Python 3.11+ (required for modern type hints and performance)
+**Transcription**: Whisper.cpp (Apple Silicon optimized, local processing only)
+**Media Processing**: FFmpeg (video-to-audio extraction, format conversion)
+**Web Framework**: FastAPI + Uvicorn + WebSockets (real-time progress updates)
 
-### Core Libraries
-- `numpy` - Numerical computing
-- `tqdm` - Progress bars
-- `pyyaml` - Configuration file parsing
-- `psutil` - System resource monitoring
+## Critical Dependencies
 
-### Web Framework
-- `fastapi>=0.116.0` - Web API framework
-- `uvicorn>=0.35.0` - ASGI server
-- `jinja2>=3.1.0` - Template engine
-- `websockets>=15.0.0` - WebSocket support
+### Always Required
+- `numpy` - Numerical operations for audio processing
+- `tqdm` - CLI progress bars (use consistently across all modules)
+- `pyyaml` - Configuration parsing (prefer YAML over JSON)
+- `psutil` - System resource monitoring (check before large operations)
+
+### Web Interface
+- `fastapi>=0.116.0` + `uvicorn>=0.35.0` - Web server stack
+- `jinja2>=3.1.0` - Template rendering
+- `websockets>=15.0.0` - Real-time progress updates
 - `python-multipart` - File upload handling
 
-### Audio/Video Processing
-- `srt>=3.5.0` - SRT subtitle format handling
-- `sounddevice>=0.4.6` - Audio recording capabilities
+### Audio Processing
+- `srt>=3.5.0` - Subtitle format generation
+- `sounddevice>=0.4.6` - Live audio recording (module3_phone)
 
-### Optional Features
-- `chromadb` - Vector database for chatbot
-- `faiss-cpu` - Similarity search
-- `sentence-transformers` - Text embeddings
-- `gradio` - Alternative web interface
+## Development Environment Setup
 
-## Build System
-
-### Package Management
-- Uses `setuptools` with `setup.py`
-- Supports editable installation: `pip install -e .`
-- Multiple install extras: `[web]`, `[chatbot]`, `[dev]`, `[full]`
-
-### Virtual Environment
-- Primary: `venv_new/` (recommended)
-- Fallback: `venv/`
-
-## Common Commands
-
-### Development Setup
+### Virtual Environment (Required)
 ```bash
-# Create and activate virtual environment
+# Always use venv_new/ (primary), fallback to venv/
 python3 -m venv venv_new
 source venv_new/bin/activate
-
-# Install in development mode
-pip install -e ".[web]"
-
-# Install all dependencies
-pip install -r requirements.txt
+pip install -e ".[web]"  # Editable install with web extras
 ```
 
-### Running the Application
+### Binary Dependencies (macOS)
 ```bash
-# Start web server (recommended)
-python -m src.whisper_transcription_tool.main web --port 8090
-
-# CLI transcription
-python -m src.whisper_transcription_tool.main transcribe audio.mp3
-
-# Extract audio from video
-python -m src.whisper_transcription_tool.main extract video.mp4
-```
-
-### Binary Dependencies
-```bash
-# Make Whisper binary executable
-chmod +x deps/whisper.cpp/build/bin/whisper-cli
-
-# Install FFmpeg (macOS)
+# FFmpeg (required for video processing)
 brew install ffmpeg
 
-# Install BlackHole for live recording
+# BlackHole (optional, for live recording)
 brew install --cask blackhole-2ch
+
+# Ensure Whisper binary is executable
+chmod +x deps/whisper.cpp/build/bin/whisper-cli
 ```
 
-### Testing
+## Command Patterns
+
+### Application Entry Point
+**Always use**: `python -m src.whisper_transcription_tool.main [command]`
+**Never use**: Direct script execution or relative imports
+
+### Standard Commands
+- `transcribe <file>` - Process audio/video files
+- `extract <video>` - Extract audio from video
+- `phone` - Live phone call recording/transcription
+- `web --port 8090` - Start web interface
+
+### Development Commands
 ```bash
-# Run tests
+# Code quality (run before commits)
+black src/ && isort src/ && mypy src/
+
+# Testing
 pytest
 
-# Code formatting
-black src/
-isort src/
-
-# Type checking
-mypy src/
+# Package installation
+pip install -e ".[full]"  # All features
 ```
 
-## Configuration
+## Configuration Management
 
-- **Format**: JSON or YAML
-- **Locations**: `~/.whisper_tool.json`, `~/.config/whisper_tool/config.json`
-- **Dynamic path resolution** for cross-platform compatibility
-- **Environment-specific settings** for model paths, output directories
+### File Locations (Priority Order)
+1. Command-line `--config` parameter
+2. User config: `~/.whisper_tool.json`
+3. System config: `~/.config/whisper_tool/config.json`
+4. Default config in `core/config.py`
+
+### Format Requirements
+- Use JSON for user configs (better error messages)
+- Use YAML for complex configurations
+- Always validate config with `core/config.py` functions
+- Support dynamic path resolution for cross-platform compatibility
+
+## Performance Guidelines
+
+### Apple Silicon Optimization
+- Leverage Metal Performance Shaders when available
+- Use Whisper.cpp compiled with Apple Silicon optimizations
+- Monitor memory usage with `psutil` before large operations
+
+### Resource Management
+- Always use context managers for file operations
+- Clean up temporary files in `transcriptions/temp/`
+- Check available disk space before processing
+- Implement graceful degradation for resource constraints

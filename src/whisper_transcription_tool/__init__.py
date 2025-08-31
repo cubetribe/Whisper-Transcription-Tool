@@ -2,4 +2,4 @@
 Whisper Transcription Tool - A modular Python tool for audio transcription using Whisper.cpp on Apple Silicon.
 """
 
-__version__ = "0.7"
+__version__ = "0.9.6.0"

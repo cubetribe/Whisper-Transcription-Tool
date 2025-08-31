@@ -4,7 +4,7 @@
 
 [![Version](https://img.shields.io/badge/version-0.9.5-blue.svg)](https://github.com/cubetribe/Whisper-Transcription-Tool)
 [![Python](https://img.shields.io/badge/python-3.8%2B-green.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/license-Personal%20Use%20Only-red.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Personal%20Use%20%7C%20Commercial%20on%20Request-orange.svg)](LICENSE)
 [![Website](https://img.shields.io/badge/website-goaiex.com-orange.svg)](https://www.goaiex.com)
 
 ## ✨ Features
@@ -145,24 +145,31 @@ python -m src.whisper_transcription_tool.main web --port 8091
 
 ## 🔐 License
 
-**PERSONAL USE ONLY - NO COMMERCIAL USE**  
+**PERSONAL USE LICENSE**  
 Copyright © 2025 Dennis Westermann - aiEX Academy  
 Website: [www.goaiex.com](https://www.goaiex.com)
 
-⚠️ **IMPORTANT**: This software is licensed for **PERSONAL, NON-COMMERCIAL USE ONLY**.
+### 📋 License Terms
 
-### Permitted Uses:
-- ✅ Personal projects and learning
-- ✅ Educational and academic research
-- ✅ Non-profit personal use
+#### ✅ Free for Personal Use:
+- Personal projects and learning
+- Educational and academic research
+- Non-profit personal use
 
-### Prohibited Uses:
-- ❌ Commercial products or services
-- ❌ Business or enterprise use
-- ❌ Paid services or consulting
-- ❌ Revenue-generating activities
+#### 💼 Commercial & Enterprise Use:
+**Available upon request!** We offer flexible licensing options for:
+- Commercial products and services
+- Business and enterprise deployment
+- Professional services and consulting
+- Revenue-generating activities
 
-**For commercial licensing inquiries**, please contact us through [www.goaiex.com](https://www.goaiex.com).
+### 📧 Get a Commercial License
+
+For commercial or enterprise licensing, please contact:
+- **Email**: mail@goaiex.com
+- **Website**: [www.goaiex.com](https://www.goaiex.com)
+
+We're happy to discuss your needs and provide appropriate licensing terms.
 
 See the [LICENSE](LICENSE) file for full terms and conditions.
 

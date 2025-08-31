@@ -104,14 +104,17 @@ class MacOSCLIWrapper:
             "timestamp": self._get_timestamp()
         }
     
-    def _create_error_response(self, message: str, error_code: str) -> Dict[str, Any]:
+    def _create_error_response(self, message: str, error_code: str, data: Dict[str, Any] = None) -> Dict[str, Any]:
         """Create a standardized error response."""
-        return {
+        response = {
             "success": False,
             "error": message,
             "code": error_code,
             "timestamp": self._get_timestamp()
         }
+        if data:
+            response["data"] = data
+        return response
     
     def _create_progress_response(self, progress: float, status: str, **kwargs) -> Dict[str, Any]:
         """Create a standardized progress update response."""
@@ -370,12 +373,167 @@ class MacOSCLIWrapper:
             )
     
     def _handle_process_batch(self, command_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle process_batch command - placeholder implementation."""
-        # TODO: Implement in Task 2.4
-        return self._create_error_response(
-            "Batch processing functionality not yet implemented",
-            "NOT_IMPLEMENTED"
-        )
+        """Handle process_batch command with sequential processing and status tracking."""
+        try:
+            # Validate required fields
+            required_fields = ['files']
+            missing_fields = [field for field in required_fields if field not in command_data]
+            if missing_fields:
+                return self._create_error_response(
+                    f"Missing required fields: {missing_fields}",
+                    "MISSING_FIELDS"
+                )
+            
+            files = command_data['files']
+            if not isinstance(files, list) or len(files) == 0:
+                return self._create_error_response(
+                    "Files must be a non-empty array",
+                    "INVALID_FILES_PARAMETER"
+                )
+            
+            output_dir = command_data.get('output_dir', 'transcriptions')
+            model = command_data.get('model', 'tiny')
+            formats = command_data.get('formats', ['txt'])
+            language = command_data.get('language', 'auto')
+            continue_on_error = command_data.get('continue_on_error', True)
+            
+            # Initialize queue with all files
+            queue = []
+            for file_path in files:
+                queue.append({
+                    'file': str(file_path),
+                    'status': 'pending',
+                    'error': None,
+                    'output_files': [],
+                    'processing_time': 0.0,
+                    'start_time': None,
+                    'end_time': None
+                })
+            
+            self.logger.info(f"Starting batch processing of {len(queue)} files")
+            
+            # Process files sequentially
+            total_files = len(queue)
+            completed_count = 0
+            failed_count = 0
+            successful_files = []
+            failed_files = []
+            
+            for i, task in enumerate(queue):
+                file_path = task['file']
+                
+                self.logger.info(f"Processing file {i+1}/{total_files}: {file_path}")
+                
+                # Update status to processing
+                task['status'] = 'processing'
+                task['start_time'] = self._get_timestamp()
+                
+                try:
+                    # Determine if file is video (needs extraction) or audio (direct transcription)
+                    input_path = Path(file_path)
+                    
+                    if not input_path.exists():
+                        task['status'] = 'failed'
+                        task['error'] = f"File not found: {file_path}"
+                        task['end_time'] = self._get_timestamp()
+                        failed_count += 1
+                        failed_files.append(task)
+                        
+                        if not continue_on_error:
+                            break
+                        continue
+                    
+                    # Check if it's a video file that needs extraction
+                    if self._is_supported_video_format(input_path):
+                        # Extract audio first
+                        extract_result = self._extract_audio(input_path, f"{output_dir}/temp")
+                        
+                        if not extract_result['success']:
+                            task['status'] = 'failed'
+                            task['error'] = f"Audio extraction failed: {extract_result['error']}"
+                            task['end_time'] = self._get_timestamp()
+                            failed_count += 1
+                            failed_files.append(task)
+                            
+                            if not continue_on_error:
+                                break
+                            continue
+                        
+                        # Use extracted audio for transcription
+                        audio_file = Path(extract_result['output_file'])
+                    else:
+                        # Use original file for transcription
+                        audio_file = input_path
+                    
+                    # Perform transcription
+                    transcription_result = self._transcribe_file(audio_file, output_dir, model, formats, language)
+                    
+                    task['end_time'] = self._get_timestamp()
+                    task['processing_time'] = transcription_result.get('processing_time', 0.0)
+                    
+                    if transcription_result['success']:
+                        task['status'] = 'completed'
+                        task['output_files'] = transcription_result['output_files']
+                        completed_count += 1
+                        successful_files.append(task)
+                        self.logger.info(f"Successfully processed: {file_path}")
+                    else:
+                        task['status'] = 'failed'
+                        task['error'] = transcription_result['error']
+                        failed_count += 1
+                        failed_files.append(task)
+                        self.logger.error(f"Failed to process: {file_path} - {task['error']}")
+                        
+                        if not continue_on_error:
+                            break
+                
+                except Exception as e:
+                    task['status'] = 'failed'
+                    task['error'] = f"Processing exception: {str(e)}"
+                    task['end_time'] = self._get_timestamp()
+                    failed_count += 1
+                    failed_files.append(task)
+                    self.logger.error(f"Exception processing {file_path}: {e}")
+                    
+                    if not continue_on_error:
+                        break
+            
+            # Create batch summary
+            summary = {
+                'total_files': total_files,
+                'completed_count': completed_count,
+                'failed_count': failed_count,
+                'success_rate': round((completed_count / total_files) * 100, 1) if total_files > 0 else 0,
+                'queue': queue,
+                'successful_files': [task['file'] for task in successful_files],
+                'failed_files': [{'file': task['file'], 'error': task['error']} for task in failed_files],
+                'processing_details': {
+                    'model_used': model,
+                    'output_formats': formats,
+                    'language': language,
+                    'output_directory': output_dir,
+                    'continue_on_error': continue_on_error
+                }
+            }
+            
+            # Determine overall success
+            overall_success = failed_count == 0 or (continue_on_error and completed_count > 0)
+            
+            if overall_success:
+                return self._create_success_response(summary)
+            else:
+                return self._create_error_response(
+                    f"Batch processing failed: {failed_count}/{total_files} files failed",
+                    "BATCH_PROCESSING_FAILED",
+                    data=summary
+                )
+                
+        except Exception as e:
+            self.logger.error(f"Batch processing error: {e}")
+            return self._create_error_response(
+                f"Batch processing failed: {str(e)}",
+                "BATCH_PROCESSING_ERROR"
+            )
     
     def _is_supported_audio_format(self, file_path: Path) -> bool:
         """Check if file format is supported for transcription."""

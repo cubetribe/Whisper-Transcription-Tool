@@ -1,60 +1,174 @@
 # Changelog
 
-## Version 0.9.3 (2025-08-31)
+All notable changes to the Whisper Transcription Tool will be documented in this file.
 
-### ✅ Neue Features
-- **Cleanup-Manager**: Automatische Bereinigung des Temp-Verzeichnisses nach erfolgreicher Transkription
-  - Löscht Audio-Chunks nach Verarbeitung
-  - Konfigurierbare Aufbewahrungsrichtlinien
-  - Reduziert Speicherplatzverbrauch erheblich (von 9.3 GB auf 0.0001 GB in Tests)
+## [0.9.5.1] - 2025-08-31
 
-### 🐛 Bugfixes
-- **TranscriptionResult metadata Fehler behoben**: Entfernte das nicht unterstützte `metadata` Argument
-- **Doppelte WebSocket-Endpoints entfernt**: Konflikt zwischen zwei `/ws/progress` Routen behoben
-- **EventType.STATUS_UPDATE ersetzt**: Durch PROGRESS_UPDATE ersetzt, da STATUS_UPDATE nicht definiert war
+### 🔧 Installation & Scripts Update
 
-### 🔧 Technische Verbesserungen
-- Zurück zur bewährten async Event-Handler Implementierung (v0.9.2)
-- Entfernung der überkomplexen Queue-Bridge-Systeme
-- Bereinigung des Event-Systems
+#### Added
+- **Simplified Installation System**: Two essential scripts for macOS
+  - `Install.command` - Complete installation wizard with automatic dependency setup
+  - `Start.command` - One-click launcher with automatic browser opening
+- **Smart Installation Features**:
+  - Automatic Python version checking
+  - Virtual environment setup and management
+  - FFmpeg installation via Homebrew
+  - Whisper.cpp build automation
+  - Optional model download (large-v3-turbo)
+  - Configuration file generation
 
-### ⚠️ Bekannte Probleme
+#### Improved
+- **Scripts Organization**: Cleaned scripts folder
+  - Only 2 essential scripts remain in main folder
+  - All legacy scripts archived to `old_versions`
+- **Better User Experience**:
+  - Color-coded terminal output
+  - Clear status messages
+  - Error handling with helpful instructions
+  - Automatic port conflict resolution
 
-#### WebSocket Progress Updates
-**Problem**: Fortschrittsbalken und Statusanzeigen werden möglicherweise nicht korrekt angezeigt.
+## [0.9.5] - 2025-08-31
 
-**Ursache**: 
-- Async/Sync Konflikt zwischen Subprocess-Events und WebSocket-Kommunikation
-- Events aus dem Whisper-Subprocess (sync) müssen an WebSocket-Clients (async) gesendet werden
+### 🎯 Major Release - Clean Repository & Enhanced Documentation
 
-**Lösungsansatz**:
-```python
-# Funktionierender Ansatz (v0.9.2):
-async def progress_event_handler(event: Event):  # ASYNC Handler
-    await websocket.send_json(event.data)
-    
-# Problematischer Ansatz (vermeiden):
-def sync_progress_handler(event: Event):  # SYNC Handler
-    thread_safe_queue.put(event_dict)  # Führt zu Thread-Boundary-Problemen
-```
+#### Added
+- **New Installation System**: Streamlined installation with two simple scripts
+  - `Install.command` - Complete macOS installation wizard with automatic setup
+  - `Start.command` - One-click application launcher
+- **License System**: Dual licensing model
+  - Free for personal use
+  - Commercial/Enterprise licenses available upon request
+  - Contact: mail@goaiex.com
+- **Comprehensive Documentation**
+  - Updated README with complete feature list
+  - Detailed installation instructions
+  - Troubleshooting guide
+  - Clear project structure documentation
 
-#### Cancel-Funktion
-**Problem**: Die Abbruch-Funktion reagiert möglicherweise nicht sofort.
+#### Changed
+- **Repository Migration**: Moved to new GitHub URL
+  - New: https://github.com/cubetribe/Whisper-Transcription-Tool
+  - Clean repository without personal data in history
+- **License Update**: Changed from MIT to Personal Use License with commercial options
+- **Scripts Organization**: Cleaned up scripts folder
+  - Only essential scripts in main folder
+  - Old scripts archived to `old_versions` directory
+- **Security Improvements**: Removed all personal paths and information
 
-**Ursache**: 
-- Der Whisper-Prozess läuft als Subprocess
-- Signale werden nicht immer korrekt weitergeleitet
+#### Technical Improvements
+- All scripts now use relative paths for better portability
+- Virtual environment detection (checks for both `venv_new` and `venv`)
+- Automatic port conflict resolution in start script
+- Enhanced error handling and user feedback
 
-**Temporäre Lösung**: Server-Neustart bei hängenden Prozessen
+## [0.9.4.2] - 2025-08-30
+
+### Features
+- **Terminal Output Display**: Attempted to add terminal output display in frontend
+  - Feature was rolled back due to implementation issues
+  - Documentation preserved for future reference
+
+### Bug Fixes
+- Fixed WebSocket connection issues
+- Improved event handling system
+
+## [0.9.4.1] - 2025-08-30
+
+### Features
+- **Terminal Debug Output**: Added debug output for better troubleshooting
+- **Improved Launcher**: Enhanced launcher script with better error handling
+
+## [0.9.4] - 2025-08-30
+
+### Features
+- **Enhanced Web Interface**: Improved UI/UX with better progress indicators
+- **Model Management**: Automatic model downloads with progress tracking
+
+## [0.9.3] - 2025-08-31
+
+### ✅ New Features
+- **Cleanup Manager**: Automatic cleanup of temp directory after successful transcription
+  - Deletes audio chunks after processing
+  - Configurable retention policies
+  - Significantly reduces disk space usage (from 9.3 GB to 0.0001 GB in tests)
+
+### 🐛 Bug Fixes
+- **WebSocket Conflicts**: Fixed duplicate `/ws/progress` endpoints
+- **Event System**: Restored proven async event handler implementation
+- **AsyncIO Issues**: Fixed sync/async bridge problems
+
+### 🔧 Technical Improvements
+- Removed complex queue-based event bridge
+- Simplified to direct async event handlers
+- Better error handling in WebSocket connections
+- Improved cleanup logic with proper temp file management
 
 ### 📝 Lessons Learned
+1. **Async/Await Consistency**: Always stay in async context with WebSockets
+2. **Event System Simplicity**: Direct async handlers are more robust than complex queue bridges
+3. **FastAPI Route Conflicts**: Duplicate WebSocket endpoints lead to unpredictable behavior
+4. **Type Safety**: Ensure all event types are defined in the Enum
 
-1. **Async/Await Konsistenz**: Bei WebSockets immer im async Context bleiben
-2. **Event-System Einfachheit**: Direkte async Handler sind robuster als komplexe Queue-Bridges
-3. **FastAPI Route-Konflikte**: Doppelte WebSocket-Endpoints führen zu unvorhersehbarem Verhalten
-4. **Type Safety**: Sicherstellen, dass alle Event-Types in der Enum definiert sind
+## [0.9.2] - 2025-08-30
 
-## Version 0.9.2 (2025-08-30)
-- Audio Chunking für große Dateien implementiert
-- Automatische Aufteilung von Dateien >20 Minuten
-- 20-Minuten-Segmente mit 10 Sekunden Überlappung
+### Features
+- **Audio Chunking**: Implemented chunking for large files
+  - Automatic splitting of files >20 minutes
+  - 20-minute segments with 10 seconds overlap
+  - Seamless transcription of long recordings
+
+### Bug Fixes
+- Fixed memory issues with large file processing
+- Improved handling of temporary files
+
+## [0.9.1] - 2025-08-29
+
+### Features
+- **Phone Recording Module**: Dual-track recording support
+- **BlackHole Integration**: System audio capture capability
+
+### Improvements
+- Better error messages
+- Enhanced logging system
+- Improved model detection
+
+## [0.9.0] - 2025-08-28
+
+### 🚀 Initial Public Release
+
+#### Core Features
+- **Local Transcription**: Using Whisper.cpp (no API needed)
+- **Web Interface**: FastAPI-based with real-time WebSocket updates
+- **Video Support**: Automatic audio extraction with FFmpeg
+- **Multiple Formats**: Support for TXT, SRT, VTT, JSON output
+- **Batch Processing**: Handle multiple files efficiently
+- **Model Management**: Support for all Whisper models
+
+#### Modules
+1. **Module 1**: Core transcription functionality
+2. **Module 2**: Video extraction capabilities
+3. **Module 3**: Phone recording processing
+4. **Module 4**: Chatbot integration (experimental)
+
+#### Platform Support
+- Optimized for Apple Silicon Macs
+- macOS 10.15+ support
+- Python 3.8+ required
+
+---
+
+## Version History Summary
+
+- **0.9.5.1** - Simplified installation with two essential scripts
+- **0.9.5** - Clean repository, enhanced documentation, simplified installation
+- **0.9.4** - UI improvements and model management
+- **0.9.3** - Cleanup manager and critical bug fixes
+- **0.9.2** - Audio chunking for large files
+- **0.9.1** - Phone recording support
+- **0.9.0** - Initial public release
+
+---
+
+For more information, visit: [www.goaiex.com](https://www.goaiex.com)  
+Copyright © 2025 Dennis Westermann - aiEX Academy

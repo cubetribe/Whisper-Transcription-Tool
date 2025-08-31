@@ -2,7 +2,7 @@
 
 🎙️ **A powerful, modular Python tool for audio/video transcription using Whisper.cpp**
 
-[![Version](https://img.shields.io/badge/version-0.9.5-blue.svg)](https://github.com/cubetribe/Whisper-Transcription-Tool)
+[![Version](https://img.shields.io/badge/version-0.9.5.1-blue.svg)](https://github.com/cubetribe/Whisper-Transcription-Tool)
 [![Python](https://img.shields.io/badge/python-3.8%2B-green.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-Personal%20Use%20%7C%20Commercial%20on%20Request-orange.svg)](LICENSE)
 [![Website](https://img.shields.io/badge/website-goaiex.com-orange.svg)](https://www.goaiex.com)
@@ -185,6 +185,6 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
-**Version:** 0.9.5 | **Status:** Production Ready ✅
+**Version:** 0.9.5.1 | **Status:** Production Ready ✅
 
 Made with ❤️ by aiEX Academy for the transcription community

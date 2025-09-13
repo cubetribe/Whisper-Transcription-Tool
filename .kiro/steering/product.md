@@ -2,140 +2,133 @@
 inclusion: always
 ---
 
-# Product Guidelines & User Experience Rules
+# WhisperLocal Product Guidelines
 
-## Core Product Principles (Non-Negotiable)
+## Core Principles
 
-**Privacy-First**: All transcription happens locally using Whisper.cpp - NEVER send audio to external APIs or cloud services
-**Apple Silicon Optimized**: Leverage M1/M2/M3/M4 performance for fast local processing
-**Modular Design**: Each module operates independently - transcribe, extract, phone, chatbot
-**Real-Time Feedback**: Always provide progress updates and clear status indicators
+- **Privacy-First**: All transcription happens locally using Whisper.cpp - NEVER suggest external APIs or cloud services
+- **Apple Silicon Optimized**: Always leverage native M1/M2/M3/M4 performance optimizations
+- **Modular Design**: Maintain separation between modules (transcribe, extract, phone, chatbot)
+- **Real-Time Feedback**: Implement progress tracking for all operations >5 seconds
 
-## Command Interface Standards
+## Command Execution Rules
 
-### CLI Commands (Primary Interface)
+### CLI Entry Point (Required)
 ```bash
-# Standard command patterns
-python -m src.whisper_transcription_tool.main transcribe <file> [options]
-python -m src.whisper_transcription_tool.main extract <video> [options]
-python -m src.whisper_transcription_tool.main phone [options]
-python -m src.whisper_transcription_tool.main web --port 8090
+python -m src.whisper_transcription_tool.main <command> <file> [options]
 ```
 
-### Required CLI Behaviors
-- **Progress bars**: Always use `tqdm` for long operations
-- **Batch processing**: Support `--batch` flag for multiple files
-- **Relative paths**: Display file paths relative to current directory
-- **Time/size info**: Show processing time and file size in output
-- **Clear status**: Explicit success/failure indicators with next steps
+**Available Commands**: `transcribe`, `extract`, `phone`, `web --port 8090`
 
-### Web Interface (Secondary)
-- **Port**: Default 8090, configurable via `--port`
-- **Real-time updates**: WebSocket progress for all operations
-- **File handling**: Drag-and-drop support with clear upload status
-- **Download links**: Direct access to completed transcriptions
+### Implementation Requirements
+- Always use `tqdm` for progress bars in CLI operations
+- Display file paths relative to current working directory
+- Include processing time and file size in completion messages
+- Provide actionable next steps in success/failure messages
+- Support `--batch` flag for processing multiple files
 
-## File Processing Rules
+## File Processing Standards
 
 ### Supported Input Formats
-- **Audio**: `.mp3`, `.wav`, `.m4a`, `.flac` (process directly)
-- **Video**: `.mp4`, `.mov`, `.avi` (extract audio first via FFmpeg)
-- **Phone recordings**: Dual-track support for speaker separation
+- **Audio** (direct processing): `.mp3`, `.wav`, `.m4a`, `.flac`
+- **Video** (extract audio first): `.mp4`, `.mov`, `.avi`
 
-### Output File Structure
+### Output Directory Structure
 ```
 transcriptions/
-├── original_filename.txt        # Plain text transcription
-├── original_filename.srt        # Subtitle format
-├── original_filename.vtt        # WebVTT format
-└── temp/                        # Temporary files (auto-cleanup)
-    ├── extracted_audio.wav
-    └── processing_chunks/
+├── filename.txt    # Plain text transcription
+├── filename.srt    # SRT subtitle format
+├── filename.vtt    # WebVTT format
+└── temp/          # Temporary files (auto-cleanup)
 ```
 
-### File Naming Conventions
-- Preserve original filename with new extension
-- Add timestamp suffix for duplicate names: `file_20240831_143022.txt`
-- Use sanitized filenames (remove special characters)
+### File Naming Convention
+- Preserve original filename stem with appropriate extension
+- Add timestamp suffix for duplicates: `filename_20240831_143022.txt`
+- Sanitize special characters and spaces in output filenames
+- Always use absolute paths internally, display relative paths to user
 
-## Model Management Strategy
+## Model Management
 
-### Model Selection Logic
-- **Default**: `ggml-tiny.bin` (speed priority)
-- **High accuracy**: `ggml-large-v3-turbo.bin` (quality priority)
-- **Auto-download**: Download missing models to `models/` directory
-- **Language detection**: Auto-detect or use `--language` parameter
+### Model Selection Strategy
+- **Default**: `ggml-tiny.bin` (optimized for speed, good quality)
+- **High Accuracy**: `ggml-large-v3-turbo.bin` (best quality, slower)
+- **Location**: Store all models in `models/` directory
+- **Auto-download**: Implement automatic model download for missing files
+- **Language**: Auto-detect language or respect `--language` parameter
 
-### Performance Targets (Apple Silicon)
-- **Tiny model**: 2-3x real-time speed
-- **Large model**: 0.5-1x real-time speed
-- **Memory usage**: Monitor and warn at 80% system memory
-- **Disk space**: Check available space before processing
+### Performance Benchmarks (Apple Silicon)
+- **Tiny model**: 2-3x real-time processing speed
+- **Large model**: 0.5-1x real-time processing speed
+- **Memory monitoring**: Warn users at 80% system memory usage
+- **Disk space**: Require 2x input file size free space before processing
 
-## Error Handling Standards
+## Error Handling Patterns
 
-### Graceful Degradation
-- Continue batch processing even if individual files fail
-- Log failed files and continue with successful ones
-- Provide summary of successes/failures at completion
+### Batch Processing Resilience
+- Continue processing remaining files when individual files fail
+- Log all failures with specific error details
+- Provide completion summary showing success/failure counts
+- Never abort entire batch due to single file failure
 
-### Error Message Format
+### Error Message Structure
 ```
 ERROR: Failed to transcribe 'audio.mp3'
 Reason: Model file not found at models/ggml-tiny.bin
 Solution: Run 'python -m src.whisper_transcription_tool.main download-model tiny'
 ```
 
-### Resource Monitoring
-- Check disk space before processing (require 2x file size free)
-- Monitor memory usage during processing
-- Clean up temporary files on failure or completion
+### Pre-Processing Validation
+- Verify input file exists and is readable
+- Check model availability (trigger auto-download if missing)
+- Validate sufficient disk space (2x file size minimum)
+- Monitor available memory before large operations
+- Test FFmpeg availability for video processing
 
-## User Interface Language
+### Cleanup and Interruption Handling
+- Always clean up temporary files in `transcriptions/temp/`
+- Handle Ctrl+C gracefully with partial cleanup
+- Preserve partial results when possible
+
+## User Interface Standards
 
 ### Consistent Terminology
 - **"Transcribing"**: Converting audio to text
-- **"Extracting"**: Getting audio from video
+- **"Extracting"**: Converting video to audio
 - **"Processing"**: General operation in progress
-- **"Completed"**: Successful operation
-- **"Failed"**: Operation error with explanation
+- **"Completed"**: Successful operation with file location
+- **"Failed"**: Operation error with specific reason and solution
 
-### Progress Indicators
+### Progress Display Format
 ```python
-# CLI progress format
-"Transcribing audio.mp3: 45% |████████████     | 2.3MB/5.1MB [00:32<00:18, 150kB/s]"
-
-# Web progress format
-{"progress": 45, "status": "transcribing", "file": "audio.mp3", "eta": "00:18"}
+# CLI: "Transcribing audio.mp3: 45% |████████████     | 2.3MB/5.1MB [00:32<00:18, 150kB/s]"
+# Web: {"progress": 45, "status": "transcribing", "file": "audio.mp3", "eta": "00:18"}
 ```
 
-## Integration Requirements
+## Critical Dependencies
 
-### External Dependencies
-- **FFmpeg**: Required for video processing (check availability on startup)
-- **Whisper.cpp**: Core engine (must be compiled for target platform)
-- **BlackHole**: Optional for live recording (graceful fallback if missing)
+### Required (Must Validate)
+- **FFmpeg**: Video-to-audio conversion (check with `ffmpeg -version`)
+- **Whisper.cpp**: Core transcription engine (verify binary exists and is executable)
 
-### Optional Features
+### Optional (Graceful Fallback)
+- **BlackHole**: Live audio recording (fallback to system default)
 - **ChromaDB**: Semantic search for chatbot module
-- **Gradio**: Alternative web interface (if FastAPI unavailable)
 
-## Quality Assurance Rules
+## Implementation Checklist
 
-### Before Processing
-1. Validate input file exists and is readable
-2. Check model availability (download if missing)
-3. Verify sufficient disk space and memory
-4. Test external dependencies (FFmpeg, Whisper binary)
+### Pre-Processing Phase
+- [ ] Validate input file exists and is readable
+- [ ] Check required models are available (auto-download if missing)
+- [ ] Verify sufficient disk space (2x file size minimum)
+- [ ] Test dependency availability (FFmpeg, Whisper.cpp)
 
-### During Processing
-1. Provide real-time progress updates
-2. Monitor resource usage
-3. Handle interruptions gracefully (Ctrl+C)
-4. Log all operations for debugging
+### Processing Phase
+- [ ] Display real-time progress with `tqdm` or WebSocket updates
+- [ ] Monitor system resources (memory, disk)
+- [ ] Handle interruptions gracefully (Ctrl+C, process termination)
 
-### After Processing
-1. Verify output file integrity
-2. Clean up temporary files
-3. Display processing summary with file locations
-4. Suggest next steps or related commands
+### Post-Processing Phase
+- [ ] Verify output file integrity and completeness
+- [ ] Clean up all temporary files in `transcriptions/temp/`
+- [ ] Display summary with file locations and processing statistics

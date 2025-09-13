@@ -5,99 +5,64 @@ inclusion: always
 # Technology Stack & Development Guidelines
 
 ## Core Technology Stack
+- **Python 3.11+** with modern type hints
+- **Whisper.cpp** for Apple Silicon optimized local transcription
+- **FFmpeg** for video-to-audio extraction
+- **FastAPI + Uvicorn** for web interface with WebSocket progress
 
-**Runtime**: Python 3.11+ (required for modern type hints and performance)
-**Transcription**: Whisper.cpp (Apple Silicon optimized, local processing only)
-**Media Processing**: FFmpeg (video-to-audio extraction, format conversion)
-**Web Framework**: FastAPI + Uvicorn + WebSockets (real-time progress updates)
-
-## Critical Dependencies
-
-### Always Required
-- `numpy` - Numerical operations for audio processing
-- `tqdm` - CLI progress bars (use consistently across all modules)
-- `pyyaml` - Configuration parsing (prefer YAML over JSON)
-- `psutil` - System resource monitoring (check before large operations)
-
-### Web Interface
-- `fastapi>=0.116.0` + `uvicorn>=0.35.0` - Web server stack
-- `jinja2>=3.1.0` - Template rendering
-- `websockets>=15.0.0` - Real-time progress updates
-- `python-multipart` - File upload handling
-
-### Audio Processing
-- `srt>=3.5.0` - Subtitle format generation
-- `sounddevice>=0.4.6` - Live audio recording (module3_phone)
-
-## Development Environment Setup
-
-### Virtual Environment (Required)
-```bash
-# Always use venv_new/ (primary), fallback to venv/
-python3 -m venv venv_new
-source venv_new/bin/activate
-pip install -e ".[web]"  # Editable install with web extras
+## Critical Dependencies & Versions
+```python
+# Core requirements (always install)
+numpy>=1.24.0, tqdm>=4.65.0, pyyaml>=6.0, psutil>=5.9.0
+fastapi>=0.116.0, uvicorn>=0.35.0, websockets>=15.0.0
+srt>=3.5.0, sounddevice>=0.4.6
 ```
 
-### Binary Dependencies (macOS)
+## Command Execution Rules
+**ALWAYS use module execution**: `python -m src.whisper_transcription_tool.main [command]`
+**NEVER use direct script calls**: `python main.py` or relative imports
+
+Standard commands: `transcribe`, `extract`, `phone`, `web --port 8090`
+
+## Environment Setup (macOS)
 ```bash
-# FFmpeg (required for video processing)
-brew install ffmpeg
-
-# BlackHole (optional, for live recording)
-brew install --cask blackhole-2ch
-
-# Ensure Whisper binary is executable
+# Required setup sequence
+python3 -m venv venv_new && source venv_new/bin/activate
+pip install -e ".[web]"
+brew install ffmpeg  # Required dependency
 chmod +x deps/whisper.cpp/build/bin/whisper-cli
 ```
 
-## Command Patterns
+## Configuration Priority Order
+1. CLI `--config` parameter
+2. `~/.whisper_tool.json` (user config)
+3. `~/.config/whisper_tool/config.json` (system)
+4. `core/config.py` defaults
 
-### Application Entry Point
-**Always use**: `python -m src.whisper_transcription_tool.main [command]`
-**Never use**: Direct script execution or relative imports
+Use JSON for user configs, YAML for complex configurations. Always validate via `core/config.py`.
 
-### Standard Commands
-- `transcribe <file>` - Process audio/video files
-- `extract <video>` - Extract audio from video
-- `phone` - Live phone call recording/transcription
-- `web --port 8090` - Start web interface
+## Performance & Resource Management
+- **Apple Silicon**: Leverage Metal Performance Shaders and optimized Whisper.cpp builds
+- **Memory**: Monitor with `psutil` before large operations, implement graceful degradation
+- **Files**: Always use context managers, auto-clean `transcriptions/temp/`
+- **Disk**: Check available space before processing (require 2x file size free)
 
-### Development Commands
+## Code Quality Standards
 ```bash
-# Code quality (run before commits)
+# Pre-commit requirements
 black src/ && isort src/ && mypy src/
-
-# Testing
-pytest
-
-# Package installation
-pip install -e ".[full]"  # All features
+pytest  # Run tests
 ```
 
-## Configuration Management
+## Type Hints & Error Handling
+```python
+from typing import Optional, List, Dict, Path
+from whisper_transcription_tool.core.exceptions import TranscriptionError
 
-### File Locations (Priority Order)
-1. Command-line `--config` parameter
-2. User config: `~/.whisper_tool.json`
-3. System config: `~/.config/whisper_tool/config.json`
-4. Default config in `core/config.py`
-
-### Format Requirements
-- Use JSON for user configs (better error messages)
-- Use YAML for complex configurations
-- Always validate config with `core/config.py` functions
-- Support dynamic path resolution for cross-platform compatibility
-
-## Performance Guidelines
-
-### Apple Silicon Optimization
-- Leverage Metal Performance Shaders when available
-- Use Whisper.cpp compiled with Apple Silicon optimizations
-- Monitor memory usage with `psutil` before large operations
-
-### Resource Management
-- Always use context managers for file operations
-- Clean up temporary files in `transcriptions/temp/`
-- Check available disk space before processing
-- Implement graceful degradation for resource constraints
+def process_file(input_path: Path, output_dir: Optional[Path] = None) -> Dict[str, str]:
+    """Always include type hints and docstrings"""
+    try:
+        # Implementation
+    except Exception as e:
+        raise TranscriptionError(f"Failed to process {input_path}: {e}")
+```

@@ -29,6 +29,8 @@ from ..core.utils import ensure_directory_exists
 
 # Phone recording module
 from .phone_routes import router as phone_router
+from .websocket_routes import websocket_router, setup_websocket_event_handlers
+from .debug_routes import debug_router
 
 logger = get_logger(__name__)
 
@@ -40,6 +42,15 @@ app = FastAPI(title="Whisper Transcription Tool")
 
 # Phone API-Routes registrieren
 app.include_router(phone_router)
+
+# WebSocket-Routes registrieren
+app.include_router(websocket_router)
+
+# Debug-Routes registrieren
+app.include_router(debug_router)
+
+# Setup WebSocket event handlers
+setup_websocket_event_handlers()
 
 # Get the directory of this file
 current_dir = Path(__file__).parent
@@ -195,14 +206,27 @@ async def index(request: Request):
 async def transcribe_page(request: Request):
     """Render the transcription page."""
     return templates.TemplateResponse(
-        "transcribe.html", 
+        "transcribe.html",
         {
-            "request": request, 
+            "request": request,
             "models": [model.value for model in WhisperModel],
             "languages": ["auto", "en", "de", "fr", "es", "it", "ja", "zh", "nl", "pt", "ru"],
             "output_formats": [format.value for format in OutputFormat],
             "default_output_dir": config["output"]["default_directory"],
             "default_model": "large-v3-turbo",  # Setze large-v3-turbo als Standardmodell
+            "app_version": VERSION
+        }
+    )
+
+
+@app.get("/phone_recording", response_class=HTMLResponse)
+async def phone_recording_page(request: Request):
+    """Render the advanced phone recording page with WebSocket support."""
+    return templates.TemplateResponse(
+        "phone_recording.html",
+        {
+            "request": request,
+            "title": "Phone Recording System",
             "app_version": VERSION
         }
     )

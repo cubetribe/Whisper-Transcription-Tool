@@ -1,33 +1,81 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="extract-section">
-    <div class="upload-container">
+<!-- Header Section -->
+<div class="header-section">
+    <h1><i class="fas fa-film"></i> Video zu Audio Extraktion</h1>
+    <div class="status-indicator success">
+        <i class="fas fa-check-circle"></i> Ready
+    </div>
+</div>
+
+<!-- Main Content -->
+<div class="grid grid-2">
+    <!-- Left Column: Upload Form -->
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">
+                <i class="fas fa-upload"></i> Video Upload
+            </div>
+        </div>
+
         <form id="extract-form" enctype="multipart/form-data">
             <div class="form-group">
-                <label for="video-file">Videodatei auswählen:</label>
-                <input type="file" id="video-file" name="video_file" accept="video/*" required>
-                <small>Unterstützte Formate: MP4, MOV, AVI, MKV, WebM</small>
+                <label for="video-file" class="form-label">Videodatei auswählen:</label>
+                <input type="file" id="video-file" name="video_file" class="form-input"
+                       accept="video/*" required>
+                <small class="text-muted">Unterstützte Formate: MP4, MOV, AVI, MKV, WebM</small>
+
+                <div class="notification info mt-4">
+                    <i class="fas fa-info-circle"></i>
+                    Die Audiodatei wird automatisch extrahiert und kann anschließend transkribiert werden.
+                </div>
             </div>
-            
-            <button type="submit" class="button primary" id="extract-button">
+
+            <button type="submit" class="btn btn-primary btn-lg" id="extract-button" style="width: 100%; margin-top: 1.5rem;">
                 <i class="fas fa-film"></i> Audio extrahieren
             </button>
         </form>
     </div>
-    
-    <div class="result-container" id="result-container" style="display: none;">
-        <h3>Extraktionsergebnis</h3>
-        <div class="progress-container" id="progress-container">
-            <div class="progress-bar" id="progress-bar"></div>
+
+    <!-- Right Column: Progress & Results -->
+    <div class="card" id="result-card">
+        <div class="card-header">
+            <div class="card-title">
+                <i class="fas fa-chart-bar"></i> Extraktion & Ergebnisse
+            </div>
         </div>
-        <div id="extraction-result"></div>
-        <div class="action-buttons" id="action-buttons" style="display: none;">
-            <button class="button" id="transcribe-button">
+
+        <!-- Default state when no processing -->
+        <div id="waiting-state">
+            <div class="text-center p-8">
+                <i class="fas fa-video text-4xl text-muted mb-4"></i>
+                <p class="text-muted">Bereit für Video-Extraktion...</p>
+                <p class="text-sm text-light">Wählen Sie eine Videodatei aus und klicken Sie "Audio extrahieren"</p>
+            </div>
+        </div>
+
+        <!-- Progress Section -->
+        <div id="progress-section" style="display: none;">
+            <div class="progress-container mb-4">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-bar"></div>
+                </div>
+                <div class="progress-text" id="progress-text">0%</div>
+            </div>
+            <div id="extraction-result"></div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex gap-4 mt-6" id="action-buttons" style="display: none;">
+            <button class="btn btn-primary" id="transcribe-button">
                 <i class="fas fa-microphone"></i> Jetzt transkribieren
             </button>
-            <button class="button" id="download-button">
+            <button class="btn btn-success" id="download-button">
                 <i class="fas fa-download"></i> Audio herunterladen
+            </button>
+            <button class="btn btn-secondary" id="reset-button">
+                <i class="fas fa-redo"></i> Neue Extraktion
             </button>
         </div>
     </div>
@@ -38,13 +86,15 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('extract-form');
-    const resultContainer = document.getElementById('result-container');
-    const progressContainer = document.getElementById('progress-container');
+    const waitingState = document.getElementById('waiting-state');
+    const progressSection = document.getElementById('progress-section');
     const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
     const extractionResult = document.getElementById('extraction-result');
     const actionButtons = document.getElementById('action-buttons');
     const transcribeButton = document.getElementById('transcribe-button');
     const downloadButton = document.getElementById('download-button');
+    const resetButton = document.getElementById('reset-button');
     
     form.addEventListener('submit', function(e) {
         e.preventDefault();
@@ -53,10 +103,15 @@ document.addEventListener('DOMContentLoaded', function() {
         const formData = new FormData(form);
         
         // UI aktualisieren
-        resultContainer.style.display = 'block';
-        progressContainer.style.display = 'block';
+        waitingState.style.display = 'none';
+        progressSection.style.display = 'block';
         progressBar.style.width = '0%';
-        extractionResult.innerHTML = '<p>Audioextraktion wird gestartet...</p>';
+        progressText.textContent = '0%';
+        extractionResult.innerHTML = `
+            <div class="notification info">
+                <i class="fas fa-spinner fa-spin"></i> Audioextraktion wird gestartet...
+            </div>
+        `;
         actionButtons.style.display = 'none';
         
         // Extraktion starten
@@ -71,19 +126,25 @@ document.addEventListener('DOMContentLoaded', function() {
             return response.json();
         })
         .then(data => {
-            progressContainer.style.display = 'none';
-            
+            progressSection.style.display = 'none';
+
             if (data.success) {
                 extractionResult.innerHTML = `
-                    <div class="success-message">
+                    <div class="notification success mb-4">
                         <i class="fas fa-check-circle"></i> Audioextraktion erfolgreich!
                     </div>
-                    <div class="result-info">
-                        <p><strong>Videodatei:</strong> ${data.video_path}</p>
-                        <p><strong>Extrahierte Audiodatei:</strong> ${data.audio_path}</p>
+                    <div class="status-grid">
+                        <div class="status-item">
+                            <span class="label">Videodatei:</span>
+                            <span class="value">${data.video_path}</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="label">Extrahierte Audiodatei:</span>
+                            <span class="value">${data.audio_path}</span>
+                        </div>
                     </div>
                 `;
-                
+
                 // Aktionsbuttons anzeigen
                 actionButtons.style.display = 'flex';
                 
@@ -99,21 +160,29 @@ document.addEventListener('DOMContentLoaded', function() {
                 };
             } else {
                 extractionResult.innerHTML = `
-                    <div class="error-message">
-                        <i class="fas fa-exclamation-circle"></i> Fehler bei der Audioextraktion
+                    <div class="notification error">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <div>
+                            <strong>Fehler bei der Audioextraktion</strong>
+                            <p class="mt-2">${data.error || 'Unbekannter Fehler'}</p>
+                        </div>
                     </div>
-                    <p>${data.error || 'Unbekannter Fehler'}</p>
                 `;
+                actionButtons.style.display = 'flex';
             }
         })
         .catch(error => {
-            progressContainer.style.display = 'none';
+            progressSection.style.display = 'none';
             extractionResult.innerHTML = `
-                <div class="error-message">
-                    <i class="fas fa-exclamation-circle"></i> Fehler bei der Audioextraktion
+                <div class="notification error">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <div>
+                        <strong>Fehler bei der Audioextraktion</strong>
+                        <p class="mt-2">${error.message}</p>
+                    </div>
                 </div>
-                <p>${error.message}</p>
             `;
+            actionButtons.style.display = 'flex';
         });
         
         // Simulierter Fortschritt (da wir keinen echten Fortschritt vom Server bekommen)
@@ -124,9 +193,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 clearInterval(progressInterval);
             } else {
                 progressBar.style.width = progress + '%';
+                progressText.textContent = Math.round(progress) + '%';
             }
         }, 300);
     });
+
+    // Reset button handler
+    if (resetButton) {
+        resetButton.addEventListener('click', function() {
+            // Reset UI to initial state
+            waitingState.style.display = 'block';
+            progressSection.style.display = 'none';
+            extractionResult.innerHTML = '';
+            actionButtons.style.display = 'none';
+
+            // Reset form
+            form.reset();
+        });
+    }
 });
 </script>
 {% endblock %}

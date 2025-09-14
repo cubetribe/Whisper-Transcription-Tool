@@ -1,109 +1,175 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="transcribe-section">
-    <div class="upload-container">
+<!-- Header Section -->
+<div class="header-section">
+    <h1><i class="fas fa-microphone"></i> Audio & Video Transkription</h1>
+    <div class="status-indicator success">
+        <i class="fas fa-check-circle"></i> Ready
+    </div>
+</div>
+
+<!-- Main Content -->
+<div class="grid grid-2">
+    <!-- Left Column: Upload Form -->
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">
+                <i class="fas fa-upload"></i> Datei Upload
+            </div>
+        </div>
+
         <form id="transcribe-form" enctype="multipart/form-data">
             <div class="form-group">
-                <label for="audio-file">Audio- oder Videodatei(en) auswählen:</label>
-                <input type="file" id="audio-file" name="audio_file" accept="audio/*,video/mp4,video/x-m4v,video/quicktime,video/webm,video/mpeg,video/x-msvideo,video/x-matroska" multiple required>
-                <small>Unterstützte Formate: <br>
-                  <strong>Audio:</strong> MP3, WAV, FLAC, OGG, M4A<br>
-                  <strong>Video:</strong> MP4, MOV, WebM, MPEG, AVI, MKV</small>
-                <div id="file-count" class="mt-2" style="display: none;">
-                    <span class="badge bg-primary"><span id="selected-files">0</span> Dateien ausgewählt</span>
+                <label for="audio-file" class="form-label">Audio- oder Videodatei(en) auswählen:</label>
+                <input type="file" id="audio-file" name="audio_file" class="form-input"
+                       accept="audio/*,video/mp4,video/x-m4v,video/quicktime,video/webm,video/mpeg,video/x-msvideo,video/x-matroska"
+                       multiple required>
+                <small class="text-muted">
+                    <strong>Audio:</strong> MP3, WAV, FLAC, OGG, M4A<br>
+                    <strong>Video:</strong> MP4, MOV, WebM, MPEG, AVI, MKV
+                </small>
+
+                <div id="file-count" class="status-indicator info mt-4" style="display: none;">
+                    <i class="fas fa-files"></i>
+                    <span id="selected-files">0</span> Dateien ausgewählt
                 </div>
-                <div class="info-message mt-2" style="background-color: #e7f3fe; border-left: 4px solid #2196F3; padding: 10px;">
-                    <i class="fas fa-info-circle"></i> Videodateien werden automatisch konvertiert, was je nach Größe länger dauern kann.
+
+                <div class="notification info mt-4">
+                    <i class="fas fa-info-circle"></i>
+                    Videodateien werden automatisch konvertiert, was je nach Größe länger dauern kann.
                 </div>
             </div>
-            
+
             <div class="form-group">
-                <label for="model">Whisper-Modell:</label>
-                <select id="model" name="model">
+                <label for="model" class="form-label">Whisper-Modell:</label>
+                <select id="model" name="model" class="form-select">
                     {% for model in models %}
                     <option value="{{ model }}" {% if model == default_model %}selected{% endif %}>{{ model }}</option>
                     {% endfor %}
                 </select>
-                <small>Größere Modelle bieten bessere Genauigkeit, benötigen aber mehr Ressourcen.</small>
+                <small class="text-muted">Größere Modelle bieten bessere Genauigkeit, benötigen aber mehr Ressourcen.</small>
             </div>
-            
+
             <div class="form-group">
-                <label for="language">Sprache (optional):</label>
-                <input type="text" id="language" name="language" placeholder="z.B. de, en, fr (leer für automatische Erkennung)">
-                <small>Leer lassen für automatische Spracherkennung.</small>
+                <label for="language" class="form-label">Sprache (optional):</label>
+                <input type="text" id="language" name="language" class="form-input"
+                       placeholder="z.B. de, en, fr (leer für automatische Erkennung)">
+                <small class="text-muted">Leer lassen für automatische Spracherkennung.</small>
             </div>
-            
+
             <div class="form-group">
-                <label for="output-format">Ausgabeformat:</label>
-                <select id="output-format" name="output_format">
+                <label for="output-format" class="form-label">Ausgabeformat:</label>
+                <select id="output-format" name="output_format" class="form-select">
                     {% for format in output_formats %}
                     <option value="{{ format }}">{{ format }}</option>
                     {% endfor %}
                 </select>
             </div>
-            
+
             <div class="form-group">
-                <label for="output-path">Ausgabe-Verzeichnis (optional):</label>
-                <div class="input-group">
-                    <input type="text" id="output-path" name="output_path" placeholder="z.B. /pfad/zu/ausgabe/ (leer für Standardverzeichnis)">
+                <label for="output-path" class="form-label">Ausgabe-Verzeichnis (optional):</label>
+                <div class="flex gap-2">
+                    <input type="text" id="output-path" name="output_path" class="form-input"
+                           placeholder="z.B. /pfad/zu/ausgabe/ (leer für Standardverzeichnis)" style="flex: 1;">
                     <button type="button" id="browse-button" class="btn btn-secondary">
                         <i class="fas fa-folder-open"></i> Durchsuchen
                     </button>
                 </div>
-                <small>Leer lassen für das Standard-Ausgabeverzeichnis: {{ default_output_dir }}</small>
+                <small class="text-muted">Leer lassen für das Standard-Ausgabeverzeichnis: {{ default_output_dir }}</small>
             </div>
             
             <!-- SRT-spezifische Einstellungen (anfangs versteckt) -->
-            <div id="srt-options" class="form-group" style="display: none;">
-                <h4>SRT-Einstellungen</h4>
-                
-                <div class="form-group">
-                    <label for="srt-max-duration">Maximale Segmentdauer: <span id="srt-max-duration-value">2</span> Sekunden</label>
-                    <input type="range" id="srt-max-duration" name="srt_max_duration" min="1" max="10" step="0.5" value="2" class="form-control">
-                    <small>Kurze Segmente (1-3 Sek.) sind besser lesbar, lange Segmente (5-10 Sek.) haben weniger Unterteilungen.</small>
+            <div id="srt-options" class="card mt-4" style="display: none;">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fas fa-cog"></i> SRT-Einstellungen
+                    </div>
                 </div>
-                
+
                 <div class="form-group">
-                    <label for="srt-max-chars">Maximale Zeichen pro Zeile: <span id="srt-max-chars-value">70</span></label>
-                    <input type="range" id="srt-max-chars" name="srt_max_chars" min="20" max="120" step="5" value="40" class="form-control">
-                    <small>Bereich: 20-120 Zeichen (empfohlen: 20-40 für kurze Segmente).</small>
+                    <label for="srt-max-duration" class="form-label">
+                        Maximale Segmentdauer: <span id="srt-max-duration-value" class="text-primary font-semibold">2</span> Sekunden
+                    </label>
+                    <input type="range" id="srt-max-duration" name="srt_max_duration"
+                           min="1" max="10" step="0.5" value="2" class="form-input">
+                    <small class="text-muted">Kurze Segmente (1-3 Sek.) sind besser lesbar, lange Segmente (5-10 Sek.) haben weniger Unterteilungen.</small>
                 </div>
+
                 <div class="form-group">
-                    <input type="checkbox" id="srt-linebreaks" name="srt_linebreaks" checked>
-                    <label for="srt-linebreaks">Zeilenumbruch für Untertitel aktivieren (Standard: 2-zeilig)</label>
+                    <label for="srt-max-chars" class="form-label">
+                        Maximale Zeichen pro Zeile: <span id="srt-max-chars-value" class="text-primary font-semibold">70</span>
+                    </label>
+                    <input type="range" id="srt-max-chars" name="srt_max_chars"
+                           min="20" max="120" step="5" value="40" class="form-input">
+                    <small class="text-muted">Bereich: 20-120 Zeichen (empfohlen: 20-40 für kurze Segmente).</small>
+                </div>
+
+                <div class="form-group">
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" id="srt-linebreaks" name="srt_linebreaks" checked>
+                        <span class="form-label">Zeilenumbruch für Untertitel aktivieren (Standard: 2-zeilig)</span>
+                    </label>
                 </div>
             </div>
-            
-            <button type="submit" class="button primary" id="transcribe-button">
+
+            <button type="submit" class="btn btn-primary btn-lg" id="transcribe-button" style="width: 100%; margin-top: 1.5rem;">
                 <i class="fas fa-microphone"></i> Transkribieren
             </button>
         </form>
     </div>
-    
-    <div class="result-container" id="result-container" style="display: none;">
-        <h3>Transkriptionsergebnis</h3>
-        <div class="progress-container" id="progress-container">
-            <div class="progress-bar" id="progress-bar"></div>
+
+    <!-- Right Column: Progress & Results -->
+    <div class="card" id="result-card">
+        <div class="card-header">
+            <div class="card-title">
+                <i class="fas fa-chart-bar"></i> Fortschritt & Ergebnisse
+            </div>
         </div>
-        <div id="transcription-result"></div>
-        
+        <!-- Default state when no processing -->
+        <div id="waiting-state">
+            <div class="text-center p-8">
+                <i class="fas fa-clock text-4xl text-muted mb-4"></i>
+                <p class="text-muted">Bereit für Transkription...</p>
+                <p class="text-sm text-light">Wählen Sie eine Datei aus und klicken Sie "Transkribieren"</p>
+            </div>
+        </div>
+
+        <!-- Progress Section -->
+        <div id="progress-section" style="display: none;">
+            <div class="progress-container mb-4">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-bar"></div>
+                </div>
+                <div class="progress-text" id="progress-text">0%</div>
+            </div>
+            <div id="transcription-result"></div>
+        </div>
+
         <!-- Terminal Output Container -->
-        <div class="terminal-container" id="terminal-container" style="display: none;">
-            <div class="terminal-header">
-                <i class="fas fa-terminal"></i> Debug Output
-                <button class="terminal-toggle" id="terminal-toggle" title="Toggle terminal">
+        <div id="terminal-container" class="card mt-4" style="display: none;">
+            <div class="card-header" style="cursor: pointer;" id="terminal-header">
+                <div class="card-title">
+                    <i class="fas fa-terminal"></i> Debug Output
+                </div>
+                <button class="btn btn-ghost btn-sm" id="terminal-toggle" title="Toggle terminal">
                     <i class="fas fa-chevron-down"></i>
                 </button>
             </div>
-            <div class="terminal-output" id="terminal-output">
+            <div class="terminal-output" id="terminal-output" style="background: var(--dark-color); color: #00ff00; padding: 1rem; font-family: var(--font-mono); font-size: 0.875rem; max-height: 300px; overflow-y: auto;">
                 <!-- Terminal messages will be added here -->
             </div>
         </div>
-        
-        <button class="button" id="download-button" style="display: none;">
-            <i class="fas fa-download"></i> Herunterladen
-        </button>
+
+        <!-- Action Buttons -->
+        <div class="flex gap-4 mt-6">
+            <button class="btn btn-success" id="download-button" style="display: none;">
+                <i class="fas fa-download"></i> Herunterladen
+            </button>
+            <button class="btn btn-secondary" id="reset-button" style="display: none;">
+                <i class="fas fa-redo"></i> Neue Transkription
+            </button>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -114,13 +180,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('transcribe-form');
     const audioFileInput = document.getElementById('audio-file');
     const audioFileLabel = document.querySelector('label[for="audio-file"]');
-    const resultContainer = document.getElementById('result-container');
     const languageInput = document.getElementById('language');
 
-    const progressContainer = document.getElementById('progress-container');
+    // Updated selectors for new design
+    const waitingState = document.getElementById('waiting-state');
+    const progressSection = document.getElementById('progress-section');
     const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
     const transcriptionResult = document.getElementById('transcription-result');
     const downloadButton = document.getElementById('download-button');
+    const resetButton = document.getElementById('reset-button');
     const outputFormatSelect = document.getElementById('output-format');
     const srtOptionsContainer = document.getElementById('srt-options');
     const srtMaxDurationSlider = document.getElementById('srt-max-duration');
@@ -161,6 +230,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Update progress bar
                 if (data.progress !== undefined) {
                     progressBar.style.width = data.progress + '%';
+                    if (progressText) {
+                        progressText.textContent = Math.round(data.progress) + '%';
+                    }
                 }
                 
                 // Update status text
@@ -204,7 +276,19 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Connect WebSocket on page load
     connectWebSocket();
-    
+
+    // Reset button handler
+    if (resetButton) {
+        resetButton.addEventListener('click', function() {
+            // Reset UI to initial state
+            waitingState.style.display = 'block';
+            progressSection.style.display = 'none';
+            transcriptionResult.innerHTML = '';
+            downloadButton.style.display = 'none';
+            resetButton.style.display = 'none';
+        });
+    }
+
     // Terminal output functions
     function addTerminalMessage(message) {
         if (!terminalContainer || !terminalOutput) return;
@@ -550,13 +634,23 @@ document.addEventListener('DOMContentLoaded', function() {
         const files = audioFileInput.files;
         
         // UI aktualisieren für Batch-Verarbeitung
-        resultContainer.style.display = 'block';
-        progressContainer.style.display = 'block';
+        waitingState.style.display = 'none';
+        progressSection.style.display = 'block';
         progressBar.style.width = '0%';
+        progressText.textContent = '0%';
         transcriptionResult.innerHTML = `
-            <div class="batch-processing">
-                <h4>Batch-Verarbeitung</h4>
-                <p><span id="batch-count">0/${window.totalFiles}</span> Dateien verarbeitet</p>
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fas fa-tasks"></i> Batch-Verarbeitung
+                    </div>
+                </div>
+                <p class="text-center mb-4">
+                    <span class="status-indicator info">
+                        <i class="fas fa-files"></i>
+                        <span id="batch-count">0/${window.totalFiles}</span> Dateien verarbeitet
+                    </span>
+                </p>
                 <div id="batch-results"></div>
             </div>
         `;
@@ -788,14 +882,17 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // UI aktualisieren
-        resultContainer.style.display = 'block';
-        progressContainer.style.display = 'block';
+        waitingState.style.display = 'none';
+        progressSection.style.display = 'block';
         progressBar.style.width = '0%';
+        progressText.textContent = '0%';
         clearTerminal(); // Clear terminal output when starting new transcription
         transcriptionResult.innerHTML = `
-            <div class="status-update">
+            <div class="notification info">
                 <i class="fas fa-spinner fa-spin"></i> Transkription läuft...
-                <button id="cancel-button" class="btn btn-danger btn-sm ml-3" style="margin-left: 1rem;">
+            </div>
+            <div class="flex justify-center mt-4">
+                <button id="cancel-button" class="btn btn-danger btn-sm">
                     <i class="fas fa-stop"></i> Abbrechen
                 </button>
             </div>
@@ -831,61 +928,60 @@ document.addEventListener('DOMContentLoaded', function() {
             return response.json();
         })
         .then(data => {
-            progressContainer.style.display = 'none';
-            
+            progressSection.style.display = 'none';
+
             if (data.success) {
                 // Basisinhalt für erfolgreiche Transkription erstellen
                 let resultHtml = `
-                    <div class="success-message">
+                    <div class="notification success mb-4">
                         <i class="fas fa-check-circle"></i> Transkription erfolgreich!
                     </div>
-                    <div class="result-info">
-                        <p><strong>Modell:</strong> ${data.model}</p>
-                        <p><strong>Sprache:</strong> ${data.language || 'Automatisch erkannt'}</p>
-                        <p><strong>Ausgabedatei:</strong> ${data.output_file}</p>
+                    <div class="status-grid">
+                        <div class="status-item">
+                            <span class="label">Modell:</span>
+                            <span class="value">${data.model}</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="label">Sprache:</span>
+                            <span class="value">${data.language || 'Automatisch erkannt'}</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="label">Ausgabedatei:</span>
+                            <span class="value">${data.output_file}</span>
+                        </div>
                     </div>
                 `;
                 
-                // SRT Format mit Zeitstempeln anzeigen
+                // Transcript Text anzeigen
                 if (outputFormatSelect.value.toLowerCase() === 'srt') {
                     resultHtml += `
-                        <div class="result-text srt-format">
-                            <h4>SRT-Untertitel mit Zeitstempeln:</h4>
-                            <pre class="srt-content">${data.text}</pre>
+                        <div class="card mt-4">
+                            <div class="card-header">
+                                <div class="card-title">
+                                    <i class="fas fa-closed-captioning"></i> SRT-Untertitel mit Zeitstempeln
+                                </div>
+                            </div>
+                            <pre style="background: var(--light-background); padding: 1rem; border-radius: var(--border-radius); max-height: 400px; overflow-y: auto; font-family: var(--font-mono); font-size: var(--font-size-sm); line-height: 1.5;">${data.text}</pre>
                         </div>
                     `;
-                    
-                    // CSS für SRT-Format
-                    const srtStyle = document.createElement('style');
-                    srtStyle.textContent = `
-                        .srt-format pre {
-                            background-color: #f8f9fa;
-                            border: 1px solid #dee2e6;
-                            border-radius: 4px;
-                            padding: 15px;
-                            max-height: 400px;
-                            overflow-y: auto;
-                        }
-                        .srt-content {
-                            line-height: 1.5;
-                            font-family: monospace;
-                        }
-                    `;
-                    document.head.appendChild(srtStyle);
                 } else {
-                    // Standard Textformat für andere Formate
                     resultHtml += `
-                        <div class="result-text">
-                            <h4>Transkribierter Text:</h4>
-                            <pre>${data.text}</pre>
+                        <div class="card mt-4">
+                            <div class="card-header">
+                                <div class="card-title">
+                                    <i class="fas fa-file-text"></i> Transkribierter Text
+                                </div>
+                            </div>
+                            <pre style="background: var(--light-background); padding: 1rem; border-radius: var(--border-radius); max-height: 400px; overflow-y: auto; font-family: var(--font-mono); font-size: var(--font-size-sm); line-height: 1.5;">${data.text}</pre>
                         </div>
                     `;
                 }
                 
                 transcriptionResult.innerHTML = resultHtml;
                 
-                // Download-Button anzeigen
+                // Download-Button und Reset-Button anzeigen
                 downloadButton.style.display = 'inline-block';
+                resetButton.style.display = 'inline-block';
                 downloadButton.onclick = function() {
                     // Datei direkt vom Server herunterladen
                     if (data.output_file) {
@@ -914,21 +1010,29 @@ document.addEventListener('DOMContentLoaded', function() {
                 };
             } else {
                 transcriptionResult.innerHTML = `
-                    <div class="error-message">
-                        <i class="fas fa-exclamation-circle"></i> Fehler bei der Transkription
+                    <div class="notification error">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <div>
+                            <strong>Fehler bei der Transkription</strong>
+                            <p class="mt-2">${data.error || 'Unbekannter Fehler'}</p>
+                        </div>
                     </div>
-                    <p>${data.error || 'Unbekannter Fehler'}</p>
                 `;
+                resetButton.style.display = 'inline-block';
             }
         })
         .catch(error => {
-            progressContainer.style.display = 'none';
+            progressSection.style.display = 'none';
             transcriptionResult.innerHTML = `
-                <div class="error-message">
-                    <i class="fas fa-exclamation-circle"></i> Fehler bei der Transkription
+                <div class="notification error">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <div>
+                        <strong>Fehler bei der Transkription</strong>
+                        <p class="mt-2">${error.message}</p>
+                    </div>
                 </div>
-                <p>${error.message}</p>
             `;
+            resetButton.style.display = 'inline-block';
         });
         
         // Simulierter Fortschritt (da wir keinen echten Fortschritt vom Server bekommen)

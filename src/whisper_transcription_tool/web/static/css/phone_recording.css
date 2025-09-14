@@ -1,0 +1,766 @@
+/* Phone Recording System CSS - Enhanced with Dark Mode */
+
+:root {
+    --primary-color: #2563eb;
+    --secondary-color: #64748b;
+    --success-color: #10b981;
+    --warning-color: #f59e0b;
+    --danger-color: #ef4444;
+    --dark-color: #1e293b;
+    --light-color: #f8fafc;
+    --border-color: #e2e8f0;
+    --text-color: #334155;
+    --text-muted: #64748b;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Remove body background override to use design system */
+/* Design system will handle body styling */
+
+/* CRITICAL: Ensure navigation is always visible and properly styled */
+/* Do NOT override main navigation styles - let styles.css handle it */
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Header */
+.header {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header h1 {
+    color: var(--dark-color);
+    font-size: 1.8rem;
+    font-weight: 600;
+}
+
+.header h1 i {
+    color: var(--primary-color);
+    margin-right: 10px;
+}
+
+.connection-status {
+    display: flex;
+    align-items: center;
+}
+
+.status-indicator {
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.status-indicator.online {
+    background: #dcfce7;
+    color: var(--success-color);
+}
+
+.status-indicator.offline {
+    background: #fee2e2;
+    color: var(--danger-color);
+}
+
+.status-indicator.connecting {
+    background: #fef3c7;
+    color: var(--warning-color);
+}
+
+/* Panels */
+.status-panel,
+.device-panel,
+.recording-panel,
+.processing-panel,
+.results-panel,
+.debug-panel {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.status-panel h2,
+.device-panel h2,
+.recording-panel h2,
+.processing-panel h2,
+.results-panel h2,
+.debug-panel h2 {
+    color: var(--dark-color);
+    font-size: 1.3rem;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+}
+
+.status-panel h2 i,
+.device-panel h2 i,
+.recording-panel h2 i,
+.processing-panel h2 i,
+.results-panel h2 i,
+.debug-panel h2 i {
+    margin-right: 8px;
+    color: var(--primary-color);
+}
+
+/* Status Grid */
+.status-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+}
+
+.status-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background: var(--light-color);
+    border-radius: 8px;
+    border-left: 4px solid var(--primary-color);
+}
+
+.status-item .label {
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.status-item .value {
+    font-weight: 600;
+}
+
+.status-item .value.unknown {
+    color: var(--warning-color);
+}
+
+.status-item .value.available {
+    color: var(--success-color);
+}
+
+.status-item .value.unavailable {
+    color: var(--danger-color);
+}
+
+/* Device Selection */
+.device-selection {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 16px;
+}
+
+.device-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.device-group label {
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: var(--text-color);
+}
+
+.device-select {
+    padding: 12px;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1rem;
+    background: white;
+    transition: border-color 0.3s ease;
+}
+
+.device-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+/* Audio Levels */
+.audio-levels {
+    margin-bottom: 20px;
+}
+
+.level-meter {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.level-meter label {
+    width: 160px;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+.meter-container {
+    display: flex;
+    align-items: center;
+    flex: 1;
+}
+
+.meter-bar {
+    flex: 1;
+    height: 20px;
+    background: #e5e7eb;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-right: 12px;
+}
+
+.meter-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--success-color) 0%, var(--warning-color) 70%, var(--danger-color) 100%);
+    width: 0%;
+    transition: width 0.1s ease;
+    border-radius: 10px;
+}
+
+/* Recording Settings */
+.recording-settings {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.setting-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.setting-group label {
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: var(--text-color);
+}
+
+.setting-group select,
+.setting-group input {
+    padding: 12px;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1rem;
+    background: white;
+    transition: border-color 0.3s ease;
+}
+
+.setting-group select:focus,
+.setting-group input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+/* Buttons */
+.btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+}
+
+.btn i {
+    margin-right: 8px;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    background: var(--primary-color);
+    color: white;
+}
+
+.btn-primary:not(:disabled):hover {
+    background: #1d4ed8;
+    transform: translateY(-1px);
+}
+
+.btn-secondary {
+    background: var(--secondary-color);
+    color: white;
+}
+
+.btn-secondary:not(:disabled):hover {
+    background: #475569;
+}
+
+.btn-success {
+    background: var(--success-color);
+    color: white;
+}
+
+.btn-success:not(:disabled):hover {
+    background: #059669;
+}
+
+.btn-warning {
+    background: var(--warning-color);
+    color: white;
+}
+
+.btn-warning:not(:disabled):hover {
+    background: #d97706;
+}
+
+.btn-danger {
+    background: var(--danger-color);
+    color: white;
+}
+
+.btn-danger:not(:disabled):hover {
+    background: #dc2626;
+}
+
+.btn-info {
+    background: #06b6d4;
+    color: white;
+}
+
+.btn-info:not(:disabled):hover {
+    background: #0891b2;
+}
+
+.btn-small {
+    padding: 6px 12px;
+    font-size: 0.875rem;
+}
+
+/* Control Buttons */
+.control-buttons {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+/* Recording Info */
+.recording-info {
+    background: var(--light-color);
+    border-radius: 8px;
+    padding: 16px;
+    border-left: 4px solid var(--success-color);
+}
+
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.info-item:last-child {
+    margin-bottom: 0;
+}
+
+.info-item .label {
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.info-item .value {
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.file-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* Progress */
+.progress-container {
+    margin-bottom: 20px;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 24px;
+    background: #e5e7eb;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-color), var(--success-color));
+    width: 0%;
+    transition: width 0.3s ease;
+    border-radius: 12px;
+}
+
+#progress-text {
+    display: block;
+    text-align: center;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+/* Debug Panel */
+.debug-panel {
+    border: 2px solid var(--border-color);
+}
+
+.debug-panel.collapsed .debug-content {
+    display: none;
+}
+
+.debug-header {
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0 !important;
+}
+
+.debug-header:hover {
+    color: var(--primary-color);
+}
+
+.toggle-icon {
+    transition: transform 0.3s ease;
+}
+
+.debug-panel:not(.collapsed) .toggle-icon {
+    transform: rotate(180deg);
+}
+
+.debug-content {
+    margin-top: 16px;
+}
+
+.debug-section {
+    margin-bottom: 20px;
+    padding: 16px;
+    background: var(--light-color);
+    border-radius: 8px;
+}
+
+.debug-section h3 {
+    margin-bottom: 12px;
+    color: var(--dark-color);
+    font-size: 1.1rem;
+}
+
+.log-container,
+.stats-container {
+    max-height: 200px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 12px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.875rem;
+    margin-bottom: 12px;
+}
+
+.log-entry {
+    margin-bottom: 4px;
+    padding: 4px 0;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.log-entry:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.log-timestamp {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.log-message {
+    color: var(--text-color);
+}
+
+/* Messages */
+.error-container,
+.success-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    max-width: 400px;
+}
+
+.error-message,
+.success-message {
+    padding: 16px;
+    margin-bottom: 12px;
+    border-radius: 8px;
+    font-weight: 500;
+    animation: slideIn 0.3s ease;
+}
+
+.error-message {
+    background: #fee2e2;
+    color: var(--danger-color);
+    border-left: 4px solid var(--danger-color);
+}
+
+.success-message {
+    background: #dcfce7;
+    color: var(--success-color);
+    border-left: 4px solid var(--success-color);
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* ===============================
+ * DARK MODE SUPPORT - CRITICAL FIX
+ * =============================== */
+
+@media (prefers-color-scheme: dark) {
+    /* Remove any purple backgrounds and use consistent dark theme */
+    body {
+        background: #0f172a !important; /* Force dark background */
+        color: #f1f5f9 !important;
+    }
+
+    /* Header Dark Mode */
+    .header {
+        background: #334155 !important;
+        border: 1px solid #475569;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+    }
+
+    .header h1 {
+        color: #f8fafc !important;
+    }
+
+    /* Panels Dark Mode */
+    .status-panel,
+    .device-panel,
+    .recording-panel,
+    .processing-panel,
+    .results-panel,
+    .debug-panel {
+        background: #334155 !important;
+        border: 1px solid #475569;
+        color: #f1f5f9;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+    }
+
+    .status-panel h2,
+    .device-panel h2,
+    .recording-panel h2,
+    .processing-panel h2,
+    .results-panel h2,
+    .debug-panel h2 {
+        color: #f8fafc !important;
+    }
+
+    /* Status Items Dark Mode */
+    .status-item {
+        background: #1e293b !important;
+        border-left: 4px solid var(--primary-color);
+        color: #f1f5f9;
+    }
+
+    .status-item .label {
+        color: #94a3b8 !important;
+    }
+
+    .status-item .value {
+        color: #f1f5f9 !important;
+    }
+
+    /* Form Elements Dark Mode */
+    .device-select,
+    .setting-group select,
+    .setting-group input {
+        background: #1e293b !important;
+        border: 2px solid #475569;
+        color: #f1f5f9;
+    }
+
+    .device-select:focus,
+    .setting-group select:focus,
+    .setting-group input:focus {
+        border-color: var(--primary-color) !important;
+    }
+
+    .device-group label,
+    .setting-group label,
+    .level-meter label {
+        color: #f1f5f9 !important;
+    }
+
+    /* Recording Info Dark Mode */
+    .recording-info {
+        background: #1e293b !important;
+        border-left: 4px solid var(--success-color);
+    }
+
+    .info-item .label {
+        color: #94a3b8 !important;
+    }
+
+    .info-item .value {
+        color: #f1f5f9 !important;
+    }
+
+    /* Progress Bars Dark Mode */
+    .progress-bar {
+        background: #475569 !important;
+    }
+
+    .meter-bar {
+        background: #475569 !important;
+    }
+
+    #progress-text {
+        color: #f1f5f9 !important;
+    }
+
+    /* Debug Panel Dark Mode */
+    .debug-section {
+        background: #1e293b !important;
+    }
+
+    .debug-section h3 {
+        color: #f8fafc !important;
+    }
+
+    .log-container,
+    .stats-container {
+        background: #0f172a !important;
+        border: 1px solid #475569;
+        color: #f1f5f9;
+    }
+
+    .log-message {
+        color: #f1f5f9 !important;
+    }
+
+    .log-timestamp {
+        color: #94a3b8 !important;
+    }
+
+    /* Ensure NO purple/violet backgrounds */
+    * {
+        background-image: none !important;
+    }
+
+    /* Remove any gradient backgrounds */
+    body::before,
+    .container::before,
+    main::before {
+        display: none !important;
+    }
+
+    /* CRITICAL: Ensure navigation header is visible and properly styled in dark mode */
+    header {
+        background: #334155 !important;
+        border-bottom: 1px solid #475569 !important;
+    }
+
+    header h1 {
+        color: #f8fafc !important;
+    }
+
+    header h1 i {
+        color: var(--primary-color) !important;
+    }
+
+    nav a {
+        color: #f1f5f9 !important;
+    }
+
+    nav a:hover {
+        color: var(--primary-color) !important;
+        background: #1e293b !important;
+    }
+
+    nav a.active {
+        color: var(--primary-color) !important;
+        background: rgba(37, 99, 235, 0.1) !important;
+    }
+}
+
+/* ===============================
+ * RESPONSIVE DESIGN
+ * =============================== */
+
+@media (max-width: 768px) {
+    .container {
+        padding: 12px;
+    }
+
+    .header {
+        flex-direction: column;
+        text-align: center;
+        gap: 12px;
+    }
+
+    .device-selection,
+    .recording-settings {
+        grid-template-columns: 1fr;
+    }
+
+    .control-buttons {
+        flex-direction: column;
+    }
+
+    .btn {
+        width: 100%;
+    }
+}
+
+/* Animation for spinning icons */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.fa-spin {
+    animation: spin 1s linear infinite;
+}
+
+/* Pulse animation for recording */
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.recording .fa-record-vinyl {
+    animation: pulse 1s ease-in-out infinite;
+    color: var(--danger-color);
+}

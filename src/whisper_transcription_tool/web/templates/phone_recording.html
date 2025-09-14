@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Phone Recording System Integration with Design System -->
+<link rel="stylesheet" href="{{ url_for('static', path='/css/phone_recording.css') }}">
+
+<!-- Header Section -->
+<div class="header-section">
+    <h1><i class="fas fa-phone"></i> Phone Recording System</h1>
+    <div class="status-indicator success" id="connection-indicator">
+        <i class="fas fa-circle"></i> Ready
+    </div>
+</div>
+
+<!-- System Status Panel -->
+<div class="card" id="systemStatus">
+    <div class="card-header">
+        <div class="card-title">
+            <i class="fas fa-cogs"></i> System Status
+        </div>
+    </div>
+    <div class="status-grid">
+        <div class="status-item">
+            <span class="label">BlackHole:</span>
+            <span id="blackhole-status" class="value unknown">Checking...</span>
+        </div>
+        <div class="status-item">
+            <span class="label">Audio Devices:</span>
+            <span id="devices-count" class="value">-</span>
+        </div>
+        <div class="status-item">
+            <span class="label">Recording Status:</span>
+            <span id="recording-status" class="value">Idle</span>
+        </div>
+    </div>
+</div>
+
+<!-- Device Selection Panel -->
+<div class="card" id="devicePanel">
+    <div class="card-header">
+        <div class="card-title">
+            <i class="fas fa-microphone"></i> Audio Device Setup
+        </div>
+    </div>
+    <div class="grid grid-2 mb-4">
+        <div class="form-group">
+            <label for="input-device" class="form-label">Input Device (Microphone):</label>
+            <select id="input-device" class="form-select">
+                <option value="">Loading devices...</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="output-device" class="form-label">Output Device (System Audio):</label>
+            <select id="output-device" class="form-select">
+                <option value="">Loading devices...</option>
+            </select>
+        </div>
+    </div>
+    <button id="refresh-devices" class="btn btn-secondary">
+        <i class="fas fa-sync-alt"></i> Refresh Devices
+    </button>
+</div>
+
+<!-- Recording Control Panel -->
+<div class="card" id="recordingPanel">
+    <div class="card-header">
+        <div class="card-title">
+            <i class="fas fa-record-vinyl"></i> Recording Controls
+        </div>
+    </div>
+
+    <!-- Audio Levels -->
+    <div class="audio-levels mb-6">
+        <div class="level-meter">
+            <label class="form-label">Microphone Level:</label>
+            <div class="meter-container">
+                <div class="meter-bar">
+                    <div id="mic-level" class="meter-fill"></div>
+                </div>
+                <span id="mic-level-value">0%</span>
+            </div>
+        </div>
+        <div class="level-meter">
+            <label class="form-label">System Audio Level:</label>
+            <div class="meter-container">
+                <div class="meter-bar">
+                    <div id="system-level" class="meter-fill"></div>
+                </div>
+                <span id="system-level-value">0%</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recording Settings -->
+    <div class="grid grid-2 mb-6">
+        <div class="form-group">
+            <label for="sample-rate" class="form-label">Sample Rate:</label>
+            <select id="sample-rate" class="form-select">
+                <option value="44100" selected>44.1 kHz</option>
+                <option value="48000">48 kHz</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="max-duration" class="form-label">Max Duration (seconds, 0 = unlimited):</label>
+            <input type="number" id="max-duration" class="form-input" value="0" min="0" max="7200">
+        </div>
+    </div>
+
+    <!-- Recording Controls -->
+    <div class="flex gap-4 mb-6 flex-wrap">
+        <button id="start-recording" class="btn btn-primary" disabled>
+            <i class="fas fa-play"></i> Start Recording
+        </button>
+        <button id="pause-recording" class="btn btn-warning" disabled>
+            <i class="fas fa-pause"></i> Pause
+        </button>
+        <button id="resume-recording" class="btn btn-info" disabled>
+            <i class="fas fa-play"></i> Resume
+        </button>
+        <button id="stop-recording" class="btn btn-danger" disabled>
+            <i class="fas fa-stop"></i> Stop Recording
+        </button>
+    </div>
+
+    <!-- Recording Status -->
+    <div class="card mt-4" id="recordingInfo" style="display: none;">
+        <div class="status-grid">
+            <div class="status-item">
+                <span class="label">Session ID:</span>
+                <span id="session-id" class="value">-</span>
+            </div>
+            <div class="status-item">
+                <span class="label">Duration:</span>
+                <span id="recording-duration" class="value">00:00</span>
+            </div>
+            <div class="status-item">
+                <span class="label">Files:</span>
+                <div id="recording-files" class="file-list">-</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Processing Panel -->
+<div class="card" id="processingPanel" style="display: none;">
+    <div class="card-header">
+        <div class="card-title">
+            <i class="fas fa-cog fa-spin"></i> Processing Recording
+        </div>
+    </div>
+    <div class="progress-container">
+        <div class="progress-bar">
+            <div id="progress-fill" class="progress-fill"></div>
+        </div>
+        <span id="progress-text" class="progress-text">Processing...</span>
+    </div>
+    <button id="process-recording" class="btn btn-success" disabled>
+        <i class="fas fa-magic"></i> Process & Transcribe
+    </button>
+</div>
+
+<!-- Results Panel -->
+<div class="card" id="resultsPanel" style="display: none;">
+    <div class="card-header">
+        <div class="card-title">
+            <i class="fas fa-file-alt"></i> Recording Results
+        </div>
+    </div>
+    <div class="results-content">
+        <div id="audio-files" class="audio-files"></div>
+        <div id="transcript-preview" class="transcript-preview"></div>
+    </div>
+</div>
+
+<!-- Debug Panel (collapsible) -->
+<div class="card debug-panel collapsed" id="debugPanel">
+    <div class="card-header debug-header" onclick="toggleDebugPanel()" style="cursor: pointer;">
+        <div class="card-title">
+            <i class="fas fa-bug"></i> Debug Information
+        </div>
+        <i class="fas fa-chevron-down toggle-icon"></i>
+    </div>
+    <div class="debug-content" id="debugContent" style="display: none;">
+        <div class="grid grid-3 gap-4">
+            <div class="card card-compact">
+                <h4>WebSocket Messages</h4>
+                <div id="websocket-log" class="log-container"></div>
+                <button onclick="clearWebSocketLog()" class="btn btn-sm btn-secondary mt-2">Clear Log</button>
+            </div>
+            <div class="card card-compact">
+                <h4>Connection Statistics</h4>
+                <div id="connection-stats" class="stats-container"></div>
+                <button onclick="requestConnectionStats()" class="btn btn-sm btn-secondary mt-2">Refresh Stats</button>
+            </div>
+            <div class="card card-compact">
+                <h4>System Performance</h4>
+                <div id="performance-stats" class="stats-container"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Error Messages -->
+<div id="error-messages" class="error-container"></div>
+
+<!-- Success Messages -->
+<div id="success-messages" class="success-container"></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/phone_recording.js') }}"></script>
+<script>
+    // Initialize the phone recording system when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        PhoneRecording.init();
+    });
+
+    // Fix debug panel toggle to work with design system
+    function toggleDebugPanel() {
+        const debugContent = document.getElementById('debugContent');
+        const toggleIcon = document.querySelector('.toggle-icon');
+        const debugPanel = document.getElementById('debugPanel');
+
+        if (debugContent.style.display === 'none') {
+            debugContent.style.display = 'block';
+            toggleIcon.style.transform = 'rotate(180deg)';
+            debugPanel.classList.remove('collapsed');
+        } else {
+            debugContent.style.display = 'none';
+            toggleIcon.style.transform = 'rotate(0deg)';
+            debugPanel.classList.add('collapsed');
+        }
+    }
+</script>
+{% endblock %}

@@ -1,120 +1,148 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="model-management-section">
-
-    <div class="form-group">
-        <label for="model-directory">Aktueller Modell-Speicherort:</label>
-        <input type="text" id="model-directory-display" value="{{ model_directory }}" readonly class="form-control" style="margin-bottom: 10px;">
-        <button id="browse-model-dir" class="btn btn-secondary">Speicherort ändern...</button> 
-        <p><small>Hier werden die Whisper-Modelle (.bin Dateien) gespeichert.</small></p>
+<!-- Header Section -->
+<div class="header-section">
+    <h1><i class="fas fa-brain"></i> Whisper Modell-Management</h1>
+    <div class="status-indicator success">
+        <i class="fas fa-database"></i> Models Ready
     </div>
+</div>
 
-    <hr>
-
-    <h2>Verfügbare Modelle</h2>
- 
-    <p>
-        Aktuelles Modell-Verzeichnis: <code id="current-model-directory">{{ model_directory }}</code>
-    </p>
-    
-    <div class="alert alert-info">
-        <h5>Modell-Empfehlungen:</h5>
-        <ul>
-            <li><strong>Tiny/Base:</strong> Für Geräte mit begrenzten Ressourcen oder wenn Geschwindigkeit wichtiger ist als Genauigkeit.</li>
-            <li><strong>Medium:</strong> Guter Kompromiss für die meisten Anwendungsfälle.</li>
-            <li><strong>Large-v3:</strong> Höchste Genauigkeit, ideal für professionelle Transkriptionen.</li>
-            <li><strong>Large-v3-Turbo:</strong> Fast so genau wie Large-v3, aber deutlich schneller.</li>
-        </ul>
-        <p><small>Die englischen Modelle (.en) sind für englische Inhalte optimiert und liefern dort bessere Ergebnisse.</small></p>
+<!-- Model Directory Configuration -->
+<div class="card mb-6">
+    <div class="card-header">
+        <div class="card-title">
+            <i class="fas fa-folder-open"></i> Modell-Speicherort
+        </div>
     </div>
 
     <div class="form-group">
-        <label for="new-model-directory">Neues Modell-Verzeichnis:</label>
-        <div class="input-group mb-3">
-            <input type="text" class="form-control" id="new-model-directory" placeholder="Gib einen neuen Pfad ein (z.B. /pfad/zu/modellen oder ~/meine_modelle)" value="{{ model_directory }}">
-            <div class="input-group-append">
-                <button class="btn btn-primary" type="button" id="set-directory-btn">Speichern</button>
-            </div>
+        <label for="model-directory-display" class="form-label">Aktueller Modell-Speicherort:</label>
+        <div class="flex gap-2">
+            <input type="text" id="model-directory-display" value="{{ model_directory }}" readonly class="form-input" style="flex: 1;">
+            <button id="browse-model-dir" class="btn btn-secondary">
+                <i class="fas fa-edit"></i> Ändern
+            </button>
         </div>
-    </p>
+        <small class="text-muted">Hier werden die Whisper-Modelle (.bin Dateien) gespeichert.</small>
+    </div>
 
-    <ul class="nav nav-tabs" id="modelTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="recommended-tab" data-bs-toggle="tab" data-bs-target="#recommended" type="button" role="tab" aria-controls="recommended" aria-selected="true">Empfohlene Modelle</button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="all-models-tab" data-bs-toggle="tab" data-bs-target="#all-models" type="button" role="tab" aria-controls="all-models" aria-selected="false">Alle Modelle</button>
-        </li>
-    </ul>
-    
-    <div class="tab-content" id="modelTabsContent">
-        <div class="tab-pane fade show active" id="recommended" role="tabpanel" aria-labelledby="recommended-tab">
-            <div class="table-responsive">
-                <table class="table table-striped table-hover mt-3">
-                    <thead>
-                        <tr>
-                            <th>Modellname</th>
-                            <th>Größe</th>
-                            <th>Beschreibung</th>
-                            <th>Status</th>
-                            <th>Aktion</th>
-                        </tr>
-                    </thead>
-                    <tbody id="recommended-models-body">
-                        <!-- Wird per JavaScript gefüllt -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        <div class="tab-pane fade" id="all-models" role="tabpanel" aria-labelledby="all-models-tab">
-            <div class="table-responsive">
-                <table class="table table-striped table-hover mt-3">
-                    <thead>
-                        <tr>
-                            <th>Modellname</th>
-                            <th>Größe</th>
-                            <th>Status</th>
-                            <th>Aktion</th>
-                        </tr>
-                    </thead>
-                    <tbody id="all-models-body">
-                        <!-- Wird per JavaScript gefüllt -->
-                    </tbody>
-                </table>
-            </div>
+    <div class="form-group">
+        <label for="new-model-directory" class="form-label">Neues Modell-Verzeichnis:</label>
+        <div class="flex gap-2">
+            <input type="text" class="form-input" id="new-model-directory"
+                   placeholder="Gib einen neuen Pfad ein (z.B. /pfad/zu/modellen oder ~/meine_modelle)"
+                   value="{{ model_directory }}" style="flex: 1;">
+            <button class="btn btn-primary" type="button" id="set-directory-btn">
+                <i class="fas fa-save"></i> Speichern
+            </button>
         </div>
     </div>
-    
-
-    
-    <!-- Inline-Fortschrittsanzeige für jeden Download direkt in der Tabelle -->
-    <div class="alert alert-info mt-3" id="download-info" style="display: none;">
-        <h5>Download läuft: <span id="current-download-model"></span></h5>
-        <p class="text-muted small mb-1">Letztes Update: <span id="last-update-time">-</span></p>
-        <div class="progress mb-2">
-            <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                 id="inline-progress-bar" 
-                 role="progressbar" 
-                 aria-valuenow="0" 
-                 aria-valuemin="0" 
-                 aria-valuemax="100" 
-                 style="width: 0%">
-                0%
-            </div>
-        </div>
-        <div class="row text-center small">
-            <div class="col">Größe: <span id="inline-size">0</span> MB</div>
-            <div class="col">Heruntergeladen: <span id="inline-downloaded">0</span> MB</div>
-            <div class="col">Geschwindigkeit: <span id="inline-speed">0</span> MB/s</div>
-            <div class="col">Verbleibend: <span id="inline-eta">Berechne...</span></div>
-        </div>
-        <!-- Detaillierte Statusinformationen -->
-        <div class="mt-2 text-center">
-            <code class="small" id="progress-details">Warte auf Fortschrittsinformationen...</code>
+</div>
+<!-- Model Recommendations -->
+<div class="card mb-6">
+    <div class="card-header">
+        <div class="card-title">
+            <i class="fas fa-lightbulb"></i> Modell-Empfehlungen
         </div>
     </div>
 
+    <div class="notification info">
+        <i class="fas fa-info-circle"></i>
+        <div>
+            <p><strong>Aktuelles Modell-Verzeichnis:</strong> <code id="current-model-directory">{{ model_directory }}</code></p>
+        </div>
+    </div>
+
+    <div class="grid grid-2 mt-4">
+        <div class="card card-compact">
+            <h5 class="font-semibold text-success mb-3"><i class="fas fa-rocket"></i> Geschwindigkeit</h5>
+            <ul class="text-sm">
+                <li><strong>Tiny/Base:</strong> Für Geräte mit begrenzten Ressourcen oder wenn Geschwindigkeit wichtiger ist als Genauigkeit.</li>
+                <li><strong>Large-v3-Turbo:</strong> Fast so genau wie Large-v3, aber deutlich schneller.</li>
+            </ul>
+        </div>
+
+        <div class="card card-compact">
+            <h5 class="font-semibold text-primary mb-3"><i class="fas fa-crosshairs"></i> Genauigkeit</h5>
+            <ul class="text-sm">
+                <li><strong>Medium:</strong> Guter Kompromiss für die meisten Anwendungsfälle.</li>
+                <li><strong>Large-v3:</strong> Höchste Genauigkeit, ideal für professionelle Transkriptionen.</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="notification warning mt-4">
+        <i class="fas fa-language"></i>
+        <small>Die englischen Modelle (.en) sind für englische Inhalte optimiert und liefern dort bessere Ergebnisse.</small>
+    </div>
+</div>
+
+
+<!-- Model Tabs Navigation -->
+<div class="grid grid-2 mb-6">
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">
+                <i class="fas fa-star"></i> Empfohlene Modelle
+            </div>
+        </div>
+        <div id="recommended-models-container">
+            <!-- Wird per JavaScript gefüllt -->
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">
+                <i class="fas fa-list"></i> Alle Modelle
+            </div>
+        </div>
+        <div id="all-models-container">
+            <!-- Wird per JavaScript gefüllt -->
+        </div>
+    </div>
+</div>
+<!-- Download Progress Card -->
+<div class="card" id="download-info" style="display: none;">
+    <div class="card-header">
+        <div class="card-title">
+            <i class="fas fa-download"></i> Download läuft: <span id="current-download-model"></span>
+        </div>
+        <div class="text-sm text-muted">Letztes Update: <span id="last-update-time">-</span></div>
+    </div>
+
+    <div class="progress-container mb-4">
+        <div class="progress-bar">
+            <div class="progress-fill" id="inline-progress-bar"></div>
+        </div>
+        <div class="progress-text" id="inline-progress-text">0%</div>
+    </div>
+
+    <div class="status-grid">
+        <div class="status-item">
+            <span class="label">Größe:</span>
+            <span class="value"><span id="inline-size">0</span> MB</span>
+        </div>
+        <div class="status-item">
+            <span class="label">Heruntergeladen:</span>
+            <span class="value"><span id="inline-downloaded">0</span> MB</span>
+        </div>
+        <div class="status-item">
+            <span class="label">Geschwindigkeit:</span>
+            <span class="value"><span id="inline-speed">0</span> MB/s</span>
+        </div>
+        <div class="status-item">
+            <span class="label">Verbleibend:</span>
+            <span class="value"><span id="inline-eta">Berechne...</span></span>
+        </div>
+    </div>
+
+    <div class="notification info mt-4">
+        <i class="fas fa-info-circle"></i>
+        <code class="text-sm" id="progress-details">Warte auf Fortschrittsinformationen...</code>
+    </div>
 </div>
 {% endblock %}
 
@@ -132,9 +160,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const browseButton = document.getElementById('browse-model-dir');
     const progressContainer = document.getElementById('download-progress');
     const progressBar = document.getElementById('model-progress-bar');
-    const progressStatus = document.getElementById('progress-status');
-    const recommendedModelsBody = document.getElementById('recommended-models-body');
-    const allModelsBody = document.getElementById('all-models-body');
+    const recommendedModelsContainer = document.getElementById('recommended-models-container');
+    const allModelsContainer = document.getElementById('all-models-container');
 
     // Lade Modellinformationen
     loadModels();
@@ -159,52 +186,63 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function displayRecommendedModels(models) {
-        recommendedModelsBody.innerHTML = '';
+        recommendedModelsContainer.innerHTML = '';
         models.forEach(model => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${model.name}</td>
-                <td>${model.size_mb} MB</td>
-                <td>
-                    <div>${model.description}</div>
-                    <div class="text-muted small mt-1">${model.recommendation}</div>
-                </td>
-                <td>
-                    ${model.is_downloaded ? 
-                        '<span class="badge bg-success">Heruntergeladen</span>' : 
-                        '<span class="badge bg-warning text-dark">Nicht heruntergeladen</span>'}
-                </td>
-                <td>
-                    ${model.is_downloaded ? 
-                        '<button class="btn btn-danger btn-sm delete-btn" data-model="' + model.name + '">Löschen</button>' : 
-                        '<button class="btn btn-primary btn-sm download-btn" data-model="' + model.name + '">Download</button>'}
-                </td>
+            const modelCard = document.createElement('div');
+            modelCard.className = 'card card-compact mb-3';
+            modelCard.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h6 class="font-semibold text-dark">${model.name}</h6>
+                        <p class="text-sm text-muted mb-2">${model.description}</p>
+                        <p class="text-xs text-light">${model.recommendation}</p>
+                        <div class="flex items-center gap-4 mt-2">
+                            <span class="text-sm"><i class="fas fa-hdd"></i> ${model.size_mb} MB</span>
+                            ${model.is_downloaded ?
+                                '<span class="status-indicator success"><i class="fas fa-check"></i> Heruntergeladen</span>' :
+                                '<span class="status-indicator warning"><i class="fas fa-download"></i> Nicht heruntergeladen</span>'}
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        ${model.is_downloaded ?
+                            '<button class="btn btn-danger btn-sm delete-btn" data-model="' + model.name + '"><i class="fas fa-trash"></i> Löschen</button>' :
+                            '<button class="btn btn-primary btn-sm download-btn" data-model="' + model.name + '"><i class="fas fa-download"></i> Download</button>'}
+                    </div>
+                </div>
             `;
-            recommendedModelsBody.appendChild(row);
+            recommendedModelsContainer.appendChild(modelCard);
         });
         attachDownloadHandlers();
     }
     
     function displayAllModels(recommendedModels, legacyModels) {
-        allModelsBody.innerHTML = '';
+        allModelsContainer.innerHTML = '';
         const allModels = [...recommendedModels, ...legacyModels];
         allModels.forEach(model => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${model.name}${model.is_legacy ? ' <span class="badge bg-secondary">Legacy</span>' : ''}</td>
-                <td>${model.size_mb > 0 ? model.size_mb + ' MB' : 'Unbekannt'}</td>
-                <td>
-                    ${model.is_downloaded ? 
-                        '<span class="badge bg-success">Heruntergeladen</span>' : 
-                        '<span class="badge bg-warning text-dark">Nicht heruntergeladen</span>'}
-                </td>
-                <td>
-                    ${model.is_downloaded ? 
-                        '<button class="btn btn-danger btn-sm delete-btn" data-model="' + model.name + '">Löschen</button>' : 
-                        '<button class="btn btn-primary btn-sm download-btn" data-model="' + model.name + '">Download</button>'}
-                </td>
+            const modelCard = document.createElement('div');
+            modelCard.className = 'card card-compact mb-3';
+            modelCard.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <div>
+                        <div class="flex items-center gap-2 mb-2">
+                            <h6 class="font-semibold text-dark">${model.name}</h6>
+                            ${model.is_legacy ? '<span class="status-indicator info text-xs">Legacy</span>' : ''}
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <span class="text-sm"><i class="fas fa-hdd"></i> ${model.size_mb > 0 ? model.size_mb + ' MB' : 'Unbekannt'}</span>
+                            ${model.is_downloaded ?
+                                '<span class="status-indicator success"><i class="fas fa-check"></i> Heruntergeladen</span>' :
+                                '<span class="status-indicator warning"><i class="fas fa-download"></i> Nicht heruntergeladen</span>'}
+                        </div>
+                    </div>
+                    <div>
+                        ${model.is_downloaded ?
+                            '<button class="btn btn-danger btn-sm delete-btn" data-model="' + model.name + '"><i class="fas fa-trash"></i> Löschen</button>' :
+                            '<button class="btn btn-primary btn-sm download-btn" data-model="' + model.name + '"><i class="fas fa-download"></i> Download</button>'}
+                    </div>
+                </div>
             `;
-            allModelsBody.appendChild(row);
+            allModelsContainer.appendChild(modelCard);
         });
         attachDownloadHandlers();
     }
@@ -352,16 +390,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // --- WebSocket Logic for Progress Updates ---
-const progressModal = new bootstrap.Modal(document.getElementById('downloadProgressModal'));
-const progressModelName = document.getElementById('progress-model-name');
-const progressStatus = document.getElementById('progress-status');
-const progressBar = document.getElementById('progress-bar');
-const progressSize = document.getElementById('progress-size');
-const progressDownloaded = document.getElementById('progress-downloaded');
-const progressSpeed = document.getElementById('progress-speed');
-const progressEta = document.getElementById('progress-eta');
-const progressMessage = document.getElementById('progress-message');
-const closeProgressModalBtn = document.getElementById('close-progress-modal-btn');
 
 let currentDownloadingModel = null; // Track which model's progress is shown
 
@@ -383,22 +411,22 @@ function formatEta(seconds) {
 function resetDownloadUI() {
     // Verstecke Fortschrittsanzeige
     document.getElementById('download-info').style.display = 'none';
-    
+
     // Setze Fortschrittsbalken zurück
     const progressBar = document.getElementById('inline-progress-bar');
+    const progressText = document.getElementById('inline-progress-text');
     progressBar.style.width = '0%';
-    progressBar.textContent = '0%';
-    progressBar.setAttribute('aria-valuenow', '0');
-    progressBar.classList.remove('bg-success', 'bg-danger');
-    progressBar.classList.add('progress-bar-animated', 'progress-bar-striped');
-    
+    if (progressText) {
+        progressText.textContent = '0%';
+    }
+
     // Aktiviere alle Download-Buttons wieder
     document.querySelectorAll('.download-btn').forEach(btn => {
         btn.disabled = false;
-        btn.textContent = 'Download';
+        btn.innerHTML = '<i class="fas fa-download"></i> Download';
         btn.title = '';
     });
-    
+
     currentDownloadingModel = null;
 }
 
@@ -455,9 +483,11 @@ function connectWebSocket() {
                 
                 // Update des inline Fortschrittsbalkens
                 const inlineProgressBar = document.getElementById('inline-progress-bar');
+                const inlineProgressText = document.getElementById('inline-progress-text');
                 inlineProgressBar.style.width = `${data.progress}%`;
-                inlineProgressBar.textContent = `${data.progress}%`;
-                inlineProgressBar.setAttribute('aria-valuenow', data.progress);
+                if (inlineProgressText) {
+                    inlineProgressText.textContent = `${data.progress}%`;
+                }
                 
                 // Update der Statuswerte mit Formatierung
                 document.getElementById('inline-size').textContent = data.total_size_mb;
@@ -469,10 +499,11 @@ function connectWebSocket() {
                 inlineProgressBar.classList.add('progress-bar-animated', 'progress-bar-striped');
             } else if (data.status === 'finished') {
                 const inlineProgressBar = document.getElementById('inline-progress-bar');
+                const inlineProgressText = document.getElementById('inline-progress-text');
                 inlineProgressBar.style.width = '100%';
-                inlineProgressBar.textContent = '100%';
-                inlineProgressBar.classList.remove('progress-bar-animated', 'progress-bar-striped');
-                inlineProgressBar.classList.add('bg-success');
+                if (inlineProgressText) {
+                    inlineProgressText.textContent = '100%';
+                }
                 document.getElementById('progress-details').textContent = 'Download abgeschlossen';
                 setTimeout(() => {
                     resetDownloadUI();
@@ -480,11 +511,12 @@ function connectWebSocket() {
                 }, 2000);
             } else if (data.status === 'error' || data.status === 'failed') {
                 const inlineProgressBar = document.getElementById('inline-progress-bar');
-                inlineProgressBar.classList.remove('progress-bar-animated', 'progress-bar-striped');
-                inlineProgressBar.classList.add('bg-danger');
+                const inlineProgressText = document.getElementById('inline-progress-text');
                 inlineProgressBar.style.width = '100%';
-                inlineProgressBar.textContent = 'Fehler: ' + (data.message || 'Unbekannter Fehler');
-                document.getElementById('progress-details').textContent = 'Fehler beim Download';
+                if (inlineProgressText) {
+                    inlineProgressText.textContent = 'Fehler';
+                }
+                document.getElementById('progress-details').textContent = 'Fehler: ' + (data.message || 'Unbekannter Fehler');
                 setTimeout(() => {
                     resetDownloadUI();
                     loadModels();
@@ -511,10 +543,10 @@ socket.onerror = (error) => {
         console.log(`WebSocket connection closed: ${event.code} ${event.reason}`);
         // If the connection closes unexpectedly while downloading, show error
         if (currentDownloadingModel && (event.code !== 1000)) { // 1000 = Normal closure
-             progressStatus.textContent = 'Status: Verbindung getrennt!';
-             progressMessage.textContent = 'Die Verbindung zum Server wurde unerwartet geschlossen.';
-             progressBar.classList.add('bg-danger');
-             closeProgressModalBtn.disabled = false;
+            const progressDetails = document.getElementById('progress-details');
+            if (progressDetails) {
+                progressDetails.textContent = 'Verbindung zum Server verloren';
+            }
         }
         setTimeout(connectWebSocket, 3000); // Attempt to reconnect after 3 seconds
     };
@@ -524,34 +556,3 @@ socket.onerror = (error) => {
 connectWebSocket();
 </script>
 {% endblock %}
-
-<!-- Download Progress Modal -->
-<div class="modal fade" id="downloadProgressModal" data-backdrop="static" data-keyboard="false" tabindex="-1" aria-labelledby="downloadProgressModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="downloadProgressModalLabel">Modell-Download Fortschritt</h5>
-                <!-- Kein Schließen-Button im Header, um unbeabsichtigtes Schließen zu verhindern -->
-            </div>
-            <div class="modal-body">
-                <h6 id="progress-model-name">Modell: </h6>
-                <p id="progress-status" class="font-weight-bold">Status: Warten...</p>
-                <div class="progress mb-2" style="height: 20px;">
-                    <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
-                </div>
-                <div class="row">
-                    <div class="col-6"><small>Größe: <span id="progress-size">N/A</span> MB</small></div>
-                    <div class="col-6"><small>Heruntergeladen: <span id="progress-downloaded">N/A</span> MB</small></div>
-                </div>
-                <div class="row">
-                    <div class="col-6"><small>Geschwindigkeit: <span id="progress-speed">N/A</span> Mbps</small></div>
-                    <div class="col-6"><small>Verbleibend: <span id="progress-eta">N/A</span></small></div>
-                </div>
-                <p id="progress-message" class="text-muted mt-2"></p>
-            </div>
-            <div class="modal-footer">
-                 <button type="button" id="close-progress-modal-btn" class="btn btn-secondary" data-dismiss="modal" disabled>Schließen</button>
-            </div>
-        </div>
-    </div>
-</div>

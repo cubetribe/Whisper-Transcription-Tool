@@ -15,14 +15,20 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends, B
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-# Import der Aufnahmeklassen
-from ..module3_phone import AudioRecorder, DeviceManager, RecordingConfig, RecordingSession
+# Import der Aufnahmeklassen (lazy loading)
+from ..module3_phone import get_audio_recorder, get_device_manager, RecordingConfig, RecordingSession
 
 router = APIRouter(prefix="/api/phone")
 logger = logging.getLogger(__name__)
 
-# Globale Instanz des AudioRecorders
-audio_recorder = AudioRecorder()
+# Lazy loading function for audio recorder
+def get_recorder():
+    """Get AudioRecorder instance using lazy loading."""
+    return get_audio_recorder()
+
+def get_dev_manager():
+    """Get DeviceManager instance using lazy loading."""
+    return get_device_manager()
 
 
 class RecordingRequest(BaseModel):
@@ -37,16 +43,17 @@ class RecordingRequest(BaseModel):
 async def get_audio_devices():
     """Liste aller verfügbaren Audiogeräte."""
     try:
-        devices = DeviceManager.list_devices()
-        blackhole_found = DeviceManager.is_blackhole_installed()
-        
+        device_manager = get_dev_manager()
+        devices = device_manager.list_devices()
+        blackhole_found = device_manager.is_blackhole_installed()
+
         # Trennung von Ein- und Ausgabegeräten
         input_devices = [d for d in devices if d['is_input']]
         output_devices = [d for d in devices if d['is_output']]
-        
+
         # Default-Markierung hinzufügen
-        default_input = DeviceManager.get_default_input_device()
-        default_output = DeviceManager.get_default_output_device()
+        default_input = device_manager.get_default_input_device()
+        default_output = device_manager.get_default_output_device()
         
         for device in input_devices:
             device['is_default'] = (device['id'] == default_input.get('id', -1))
@@ -68,8 +75,11 @@ async def get_audio_devices():
 async def start_recording(request: RecordingRequest):
     """Startet eine neue Aufnahmesitzung."""
     try:
+        device_manager = get_dev_manager()
+        audio_recorder = get_recorder()
+
         # Prüfen, ob BlackHole installiert ist
-        if not DeviceManager.is_blackhole_installed():
+        if not device_manager.is_blackhole_installed():
             return JSONResponse(
                 status_code=400,
                 content={
@@ -77,11 +87,11 @@ async def start_recording(request: RecordingRequest):
                     "error": "BlackHole nicht installiert. Bitte installieren Sie BlackHole."
                 }
             )
-        
+
         # Aufnahmekonfiguration erstellen
         output_dir = Path("recordings")
         output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         config = RecordingConfig(
             input_device_id=request.input_device_id,
             output_device_id=request.output_device_id,
@@ -89,10 +99,10 @@ async def start_recording(request: RecordingRequest):
             max_duration_sec=request.max_duration_sec,
             output_directory=str(output_dir)
         )
-        
+
         # Session erstellen
         session = audio_recorder.create_session(config)
-        
+
         # Aufnahme starten
         success = audio_recorder.start_recording(session.session_id)
         
@@ -126,6 +136,7 @@ async def start_recording(request: RecordingRequest):
 async def pause_recording(session_id: str):
     """Pausiert eine laufende Aufnahme."""
     try:
+        audio_recorder = get_recorder()
         session = audio_recorder.get_session(session_id)
         if not session:
             return JSONResponse(
@@ -157,6 +168,7 @@ async def pause_recording(session_id: str):
 async def resume_recording(session_id: str):
     """Setzt eine pausierte Aufnahme fort."""
     try:
+        audio_recorder = get_recorder()
         session = audio_recorder.get_session(session_id)
         if not session:
             return JSONResponse(
@@ -188,6 +200,7 @@ async def resume_recording(session_id: str):
 async def stop_recording(session_id: str):
     """Beendet eine laufende Aufnahme."""
     try:
+        audio_recorder = get_recorder()
         session = audio_recorder.get_session(session_id)
         if not session:
             return JSONResponse(
@@ -232,14 +245,15 @@ async def stop_recording(session_id: str):
 
 def transcribe_recording_task(session_id: str) -> Dict:
     """Hintergrundaufgabe zum Aufbereiten der Aufnahmedateien.
-    
+
     Args:
         session_id: ID der Aufnahmesitzung
-        
+
     Returns:
         Dict: Ergebnis mit Dateipfaden der Audioaufnahmen
     """
     try:
+        audio_recorder = get_recorder()
         session = audio_recorder.get_session(session_id)
         if not session:
             return {
@@ -280,6 +294,7 @@ def transcribe_recording_task(session_id: str) -> Dict:
 async def process_recording(session_id: str, background_tasks: BackgroundTasks):
     """Verarbeitet eine aufgenommene Audiositzung."""
     try:
+        audio_recorder = get_recorder()
         session = audio_recorder.get_session(session_id)
         if not session:
             return JSONResponse(

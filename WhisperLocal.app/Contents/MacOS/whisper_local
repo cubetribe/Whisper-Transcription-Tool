@@ -1,0 +1,8 @@
+#!/bin/bash
+# WhisperLocal macOS App Launcher
+cd "$(dirname "$0")"/../Resources
+export PATH="$PWD/venv_new/bin:$PATH"
+python3 -m src.whisper_transcription_tool.main web --port 8090 &
+sleep 2
+open "http://localhost:8090"
+wait

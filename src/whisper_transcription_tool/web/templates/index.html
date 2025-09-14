@@ -1,45 +1,70 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="welcome-section">
-    <h3>Willkommen beim Whisper Transcription Tool</h3>
-    <p>Dieses Tool ermöglicht die Transkription von Audio- und Videodateien mit Whisper.cpp auf Apple Silicon.</p>
+<div class="header-section">
+    <div>
+        <h1><i class="fas fa-home"></i> Willkommen</h1>
+        <p class="text-muted">Professionelle Audio- und Video-Transkription mit Whisper.cpp</p>
+    </div>
+    <div class="status-indicator online">
+        <i class="fas fa-check-circle"></i> System bereit
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title"><i class="fas fa-rocket"></i> Funktionen</h3>
+    </div>
+    <p>Wählen Sie aus den verfügbaren Transkriptions-Optionen:</p>
     
     <div class="features">
         <div class="feature-card">
             <i class="fas fa-microphone"></i>
             <h4>Audio-Transkription</h4>
             <p>Transkribieren Sie Audiodateien mit dem leistungsstarken Whisper-Modell.</p>
-            <a href="/transcribe" class="button">Zur Transkription</a>
+            <a href="/transcribe" class="btn btn-primary">
+                <i class="fas fa-arrow-right"></i> Zur Transkription
+            </a>
         </div>
-        
+
         <div class="feature-card">
             <i class="fas fa-film"></i>
             <h4>Video-Audioextraktion</h4>
             <p>Extrahieren Sie Audio aus Videodateien für die Transkription.</p>
-            <a href="/extract" class="button">Zur Extraktion</a>
+            <a href="/extract" class="btn btn-primary">
+                <i class="fas fa-arrow-right"></i> Zur Extraktion
+            </a>
         </div>
-        
+
         <div class="feature-card">
             <i class="fas fa-phone"></i>
             <h4>Telefonaufnahmen</h4>
             <p>Verarbeiten Sie Telefonaufnahmen mit zwei separaten Spuren.</p>
-            <a href="/phone" class="button">Zu Telefonaufnahmen</a>
+            <a href="/phone" class="btn btn-primary">
+                <i class="fas fa-arrow-right"></i> Zu Telefonaufnahmen
+            </a>
         </div>
-        
+
         <div class="feature-card">
             <i class="fas fa-robot"></i>
             <h4>Chatbot-Analyse</h4>
             <p>Analysieren Sie Transkripte mit einem intelligenten Chatbot.</p>
-            <a href="/chatbot" class="button">Zum Chatbot</a>
+            <a href="/chatbot" class="btn btn-primary">
+                <i class="fas fa-arrow-right"></i> Zum Chatbot
+            </a>
         </div>
     </div>
 </div>
 
-<div class="system-info">
-    <h3>Systemstatus</h3>
-    <div id="system-status">
-        <p>Lade Systemstatus...</p>
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title"><i class="fas fa-cog"></i> Systemstatus</h3>
+    </div>
+    <div class="status-grid" id="system-status">
+        <div class="status-item">
+            <span class="label">Status:</span>
+            <span class="value">Lade...</span>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -53,18 +78,48 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
             const statusDiv = document.getElementById('system-status');
             if (data.success) {
-                let html = '<ul>';
-                html += `<li><strong>Verfügbare Modelle:</strong> ${Array.isArray(data.models) ? data.models.join(', ') : 'Keine Modelle verfügbar'}</li>`;
-                html += `<li><strong>Standard-Modell:</strong> large-v3-turbo</li>`;
-                html += '</ul>';
-                statusDiv.innerHTML = html;
+                const modelCount = Array.isArray(data.models) ? data.models.length : 0;
+                statusDiv.innerHTML = `
+                    <div class="status-item">
+                        <span class="label">System:</span>
+                        <span class="value available">Bereit</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="label">Modelle:</span>
+                        <span class="value available">${modelCount} verfügbar</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="label">Standard-Modell:</span>
+                        <span class="value">large-v3-turbo</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="label">Whisper:</span>
+                        <span class="value available">Einsatzbereit</span>
+                    </div>
+                `;
             } else {
-                statusDiv.innerHTML = `<p class="error">Fehler beim Laden des Systemstatus: ${data.error}</p>`;
+                statusDiv.innerHTML = `
+                    <div class="status-item">
+                        <span class="label">System:</span>
+                        <span class="value unavailable">Fehler</span>
+                    </div>
+                    <div class="status-item" style="grid-column: 1/-1;">
+                        <span class="text-danger">Fehler: ${data.error}</span>
+                    </div>
+                `;
             }
         })
         .catch(error => {
             const statusDiv = document.getElementById('system-status');
-            statusDiv.innerHTML = `<p class="error">Fehler beim Laden des Systemstatus: ${error.message}</p>`;
+            statusDiv.innerHTML = `
+                <div class="status-item">
+                    <span class="label">System:</span>
+                    <span class="value unavailable">Offline</span>
+                </div>
+                <div class="status-item" style="grid-column: 1/-1;">
+                    <span class="text-danger">Fehler: ${error.message}</span>
+                </div>
+            `;
         });
 });
 </script>

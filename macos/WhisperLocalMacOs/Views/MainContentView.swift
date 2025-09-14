@@ -10,6 +10,8 @@ struct MainContentView: View {
                 TranscribeView()
             case .extract:
                 ExtractView()
+            case .phoneRecording:
+                PhoneRecordingView()
             case .batch:
                 BatchView()
             case .models:

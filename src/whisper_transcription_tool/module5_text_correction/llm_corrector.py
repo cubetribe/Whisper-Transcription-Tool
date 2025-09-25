@@ -149,8 +149,24 @@ Corrected text:"""
 
         try:
             logger.info(f"Loading LeoLM model from: {self.model_path}")
+            logger.info(f"Model file size: {self.model_path.stat().st_size / (1024**3):.2f} GB")
+
+            # Check file integrity
+            import hashlib
+            logger.info("Checking model file integrity...")
+            with open(self.model_path, 'rb') as f:
+                # Read first 1MB to check if it's a valid GGUF file
+                header = f.read(1024 * 1024)
+                if not header.startswith(b'GGUF'):
+                    logger.error("Model file does not appear to be a valid GGUF format")
+                    return False
+
+            logger.info("Model file appears to be valid GGUF format")
 
             # Configure for macOS Metal acceleration
+            logger.info(f"Configuring model with context length: {self.context_length}")
+            logger.info("Using Metal GPU acceleration with all layers")
+
             self.model = Llama(
                 model_path=str(self.model_path),
                 n_ctx=self.context_length,
@@ -163,10 +179,27 @@ Corrected text:"""
 
             self._model_loaded = True
             logger.info(f"Model loaded successfully. Context length: {self.context_length}")
+            logger.info(f"Model vocabulary size: {self.model.n_vocab()}")
             return True
 
+        except ValueError as e:
+            if "tensor" in str(e).lower() and "shape" in str(e).lower():
+                logger.error(f"Model tensor dimension mismatch: {e}")
+                logger.error("This indicates the model file is incompatible with the current llama-cpp-python version")
+                logger.error("Solution: Download a compatible model or update llama-cpp-python")
+            else:
+                logger.error(f"Model loading failed with ValueError: {e}")
+            self.model = None
+            self._model_loaded = False
+            return False
+        except FileNotFoundError as e:
+            logger.error(f"Model file not found: {e}")
+            self.model = None
+            self._model_loaded = False
+            return False
         except Exception as e:
-            logger.error(f"Failed to load model: {e}")
+            logger.error(f"Unexpected error loading model: {type(e).__name__}: {e}")
+            logger.error("This may be due to insufficient memory, corrupted model file, or compatibility issues")
             self.model = None
             self._model_loaded = False
             return False

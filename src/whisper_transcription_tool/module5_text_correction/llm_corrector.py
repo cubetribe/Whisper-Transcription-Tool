@@ -384,6 +384,30 @@ Corrected text:"""
             logger.error(f"Error during text correction: {e}")
             raise
 
+    async def correct_text_async(self, text: str, correction_level: str = "basic", language: str = "de") -> str:
+        """
+        Async version of correct_text for use in async contexts.
+
+        Args:
+            text: Text to correct.
+            correction_level: Level of correction ("basic", "advanced", "formal").
+            language: Language for prompts ("de", "en").
+
+        Returns:
+            Corrected text.
+        """
+        import asyncio
+
+        # Run the synchronous method in a thread pool to avoid blocking
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            self.correct_text,
+            text,
+            correction_level,
+            language
+        )
+
     def get_model_info(self) -> Dict[str, Any]:
         """
         Get information about the loaded model.

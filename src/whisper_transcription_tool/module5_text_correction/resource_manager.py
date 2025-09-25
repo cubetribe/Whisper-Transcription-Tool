@@ -669,6 +669,7 @@ class ResourceManager:
             "gpu_acceleration": self.gpu_acceleration,
             "memory_safe": is_safe,
             "memory_warning": warning,
+            "can_run_correction": is_safe and self._initialized,
             "active_models": {
                 model_type.value: {
                     "memory_usage": resource.memory_usage,

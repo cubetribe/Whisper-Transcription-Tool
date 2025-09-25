@@ -145,7 +145,7 @@ async def correct_transcription(
                 status = {"can_run_correction": True}
             else:
                 resource_manager = ResourceManager()
-                status = resource_manager.get_system_status()
+                status = resource_manager.get_status()
 
             if not status.get("can_run_correction", False):
                 # Fallback to simple rule-based correction

@@ -20,6 +20,15 @@ requests>=2.32.0
 srt>=3.5.0
 sounddevice>=0.4.6
 
+# Text processing and tokenization (for text correction)
+sentencepiece>=0.1.99
+nltk>=3.8
+transformers>=4.21.0
+
+# LLM Dependencies (for text correction with local models)
+llama-cpp-python>=0.2.0
+packaging>=20.0
+
 # Optional: Advanced features (chatbot, etc.)
 chromadb>=0.4.0
 faiss-cpu>=1.7.0

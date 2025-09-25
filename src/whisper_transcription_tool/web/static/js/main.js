@@ -159,10 +159,378 @@ function formatTimestamp(seconds) {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = Math.floor(seconds % 60);
-    
+
     return [
         h > 0 ? h.toString().padStart(2, '0') : null,
         m.toString().padStart(2, '0'),
         s.toString().padStart(2, '0')
     ].filter(Boolean).join(':');
+}
+
+/**
+ * Text Correction Manager
+ */
+class TextCorrectionManager {
+    constructor() {
+        this.isAvailable = false;
+        this.modelInfo = null;
+        this.init();
+    }
+
+    async init() {
+        this.setupEventListeners();
+        await this.checkModelAvailability();
+    }
+
+    setupEventListeners() {
+        const enableCorrectionCheckbox = document.getElementById('enable-correction');
+        const correctionOptions = document.getElementById('correction-options');
+
+        if (enableCorrectionCheckbox && correctionOptions) {
+            enableCorrectionCheckbox.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    correctionOptions.style.display = 'block';
+                } else {
+                    correctionOptions.style.display = 'none';
+                }
+            });
+        }
+    }
+
+    async checkModelAvailability() {
+        const statusIndicator = document.getElementById('correction-availability');
+        const ramInfo = document.getElementById('ram-info');
+        const modelStatus = document.getElementById('model-status');
+
+        try {
+            const response = await fetch('/api/correction/status');
+            const data = await response.json();
+
+            this.isAvailable = data.available;
+            this.modelInfo = data;
+
+            if (data.available) {
+                statusIndicator.className = 'status-indicator available';
+                statusIndicator.innerHTML = '<i class="fas fa-check-circle"></i> LeoLM-Modell verfügbar';
+                modelStatus.className = 'model-status';
+
+                if (data.ram_required) {
+                    ramInfo.textContent = `Benötigter RAM: ~${data.ram_required} GB`;
+                }
+            } else if (data.downloading) {
+                statusIndicator.className = 'status-indicator warning';
+                statusIndicator.innerHTML = '<i class="fas fa-download"></i> Modell wird heruntergeladen...';
+                modelStatus.className = 'model-status warning';
+                ramInfo.textContent = 'Download läuft, bitte warten...';
+            } else {
+                statusIndicator.className = 'status-indicator unavailable';
+                statusIndicator.innerHTML = '<i class="fas fa-times-circle"></i> LeoLM-Modell nicht verfügbar';
+                modelStatus.className = 'model-status unavailable';
+                ramInfo.textContent = data.error || 'Modell kann nicht geladen werden';
+
+                // Disable correction option
+                const enableCorrectionCheckbox = document.getElementById('enable-correction');
+                if (enableCorrectionCheckbox) {
+                    enableCorrectionCheckbox.disabled = true;
+                    enableCorrectionCheckbox.parentElement.style.opacity = '0.6';
+                }
+            }
+        } catch (error) {
+            console.error('Error checking model availability:', error);
+            statusIndicator.className = 'status-indicator unavailable';
+            statusIndicator.innerHTML = '<i class="fas fa-exclamation-circle"></i> Fehler beim Prüfen der Verfügbarkeit';
+            modelStatus.className = 'model-status unavailable';
+            ramInfo.textContent = 'Netzwerkfehler';
+        }
+    }
+}
+
+/**
+ * Two-Phase Progress Manager
+ */
+class TwoPhaseProgressManager {
+    constructor() {
+        this.currentPhase = null;
+        this.phases = {
+            transcription: {
+                element: document.getElementById('transcription-phase'),
+                title: document.getElementById('transcription-phase-title'),
+                progressBar: document.getElementById('transcription-progress-bar'),
+                eta: document.getElementById('transcription-eta'),
+                chunkInfo: document.getElementById('transcription-chunk-info')
+            },
+            correction: {
+                element: document.getElementById('correction-phase'),
+                title: document.getElementById('correction-phase-title'),
+                progressBar: document.getElementById('correction-progress-bar'),
+                eta: document.getElementById('correction-eta'),
+                chunkInfo: document.getElementById('correction-chunk-info')
+            }
+        };
+        this.startTime = null;
+    }
+
+    startProgress(hasCorrectionEnabled = false) {
+        const progressPhases = document.getElementById('progress-phases');
+        const progressContainer = document.getElementById('progress-container');
+
+        if (progressPhases) {
+            progressPhases.style.display = 'block';
+            progressContainer.style.display = 'none';
+
+            // Show/hide correction phase based on settings
+            if (this.phases.correction.element) {
+                this.phases.correction.element.style.display = hasCorrectionEnabled ? 'block' : 'none';
+            }
+
+            this.startTime = Date.now();
+            this.setPhase('transcription', 'active');
+        } else {
+            // Fallback to legacy progress bar
+            progressContainer.style.display = 'block';
+        }
+    }
+
+    setPhase(phaseName, status) {
+        this.currentPhase = phaseName;
+        const phase = this.phases[phaseName];
+
+        if (!phase || !phase.title) return;
+
+        // Reset all phases
+        Object.keys(this.phases).forEach(key => {
+            const p = this.phases[key];
+            if (p.title) {
+                p.title.className = 'phase-title';
+            }
+            if (p.progressBar) {
+                p.progressBar.className = 'phase-progress-bar';
+            }
+        });
+
+        // Set current phase status
+        if (phase.title) {
+            phase.title.className = `phase-title ${status}`;
+        }
+        if (phase.progressBar) {
+            phase.progressBar.className = `phase-progress-bar ${status}`;
+        }
+    }
+
+    updateProgress(phaseName, progress, chunkCurrent = null, chunkTotal = null, eta = null) {
+        const phase = this.phases[phaseName];
+        if (!phase) return;
+
+        // Update progress bar
+        if (phase.progressBar) {
+            phase.progressBar.style.width = `${Math.max(0, Math.min(100, progress))}%`;
+        }
+
+        // Update chunk info
+        if (phase.chunkInfo && chunkCurrent && chunkTotal) {
+            phase.chunkInfo.textContent = `${chunkCurrent}/${chunkTotal} Chunks`;
+            phase.chunkInfo.className = 'chunk-info active';
+        }
+
+        // Update ETA
+        if (phase.eta && eta) {
+            phase.eta.textContent = `ETA: ${eta}`;
+        }
+    }
+
+    completePhase(phaseName) {
+        const phase = this.phases[phaseName];
+        if (!phase) return;
+
+        this.setPhase(phaseName, 'completed');
+
+        if (phase.progressBar) {
+            phase.progressBar.style.width = '100%';
+        }
+
+        if (phase.eta) {
+            phase.eta.textContent = 'Abgeschlossen';
+        }
+
+        if (phase.chunkInfo) {
+            phase.chunkInfo.className = 'chunk-info';
+        }
+    }
+
+    hideProgress() {
+        const progressPhases = document.getElementById('progress-phases');
+        const progressContainer = document.getElementById('progress-container');
+
+        if (progressPhases) {
+            progressPhases.style.display = 'none';
+        }
+        if (progressContainer) {
+            progressContainer.style.display = 'none';
+        }
+    }
+
+    calculateETA(progress, startTime) {
+        if (progress <= 0 || !startTime) return null;
+
+        const elapsed = Date.now() - startTime;
+        const estimatedTotal = elapsed / (progress / 100);
+        const remaining = estimatedTotal - elapsed;
+
+        if (remaining <= 0) return null;
+
+        const seconds = Math.ceil(remaining / 1000);
+        if (seconds < 60) {
+            return `${seconds}s`;
+        } else {
+            const minutes = Math.ceil(seconds / 60);
+            return `${minutes}m`;
+        }
+    }
+}
+
+/**
+ * Result Display Manager
+ */
+class ResultDisplayManager {
+    constructor() {
+        this.resultContainer = document.getElementById('transcription-result');
+    }
+
+    displayResults(data) {
+        if (!this.resultContainer) return;
+
+        if (data.correction_enabled && data.corrected_text) {
+            this.displayDualResults(data);
+        } else {
+            this.displaySingleResult(data);
+        }
+    }
+
+    displayDualResults(data) {
+        const resultHTML = `
+            <div class="result-versions">
+                <div class="result-version">
+                    <div class="version-header">
+                        <div class="version-title">
+                            <i class="fas fa-microphone"></i> Original-Transkription
+                        </div>
+                        <div class="version-badge">Original</div>
+                    </div>
+                    <div class="version-content">
+                        <pre>${data.text || 'Kein Text verfügbar'}</pre>
+                    </div>
+                    <div class="version-metadata">
+                        <div class="metadata-item">
+                            <span>Verarbeitungszeit:</span>
+                            <span>${data.transcription_time || 'N/A'}</span>
+                        </div>
+                        <div class="metadata-item">
+                            <span>Modell:</span>
+                            <span>${data.model || 'N/A'}</span>
+                        </div>
+                        <div class="metadata-item">
+                            <span>Sprache:</span>
+                            <span>${data.language || 'Auto-erkannt'}</span>
+                        </div>
+                    </div>
+                    <div class="version-actions">
+                        <button class="btn primary" onclick="downloadFile('${data.output_file}')">
+                            <i class="fas fa-download"></i> Download
+                        </button>
+                    </div>
+                </div>
+
+                <div class="result-version">
+                    <div class="version-header">
+                        <div class="version-title">
+                            <i class="fas fa-spell-check"></i> Korrigierte Version
+                        </div>
+                        <div class="version-badge corrected">Korrigiert</div>
+                    </div>
+                    <div class="version-content">
+                        <pre>${data.corrected_text || 'Keine Korrektur verfügbar'}</pre>
+                    </div>
+                    <div class="version-metadata">
+                        <div class="metadata-item">
+                            <span>Korrektur-Zeit:</span>
+                            <span>${data.correction_time || 'N/A'}</span>
+                        </div>
+                        <div class="metadata-item">
+                            <span>Korrekturstufe:</span>
+                            <span>${data.correction_level || 'Standard'}</span>
+                        </div>
+                        <div class="metadata-item">
+                            <span>Änderungen:</span>
+                            <span>${data.correction_changes || '0'} Korrekturen</span>
+                        </div>
+                    </div>
+                    <div class="version-actions">
+                        <button class="btn primary" onclick="downloadFile('${data.corrected_output_file}')">
+                            <i class="fas fa-download"></i> Download
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        this.resultContainer.innerHTML = resultHTML;
+    }
+
+    displaySingleResult(data) {
+        let resultHtml = `
+            <div class="success-message">
+                <i class="fas fa-check-circle"></i> Transkription erfolgreich!
+            </div>
+            <div class="result-info">
+                <p><strong>Modell:</strong> ${data.model}</p>
+                <p><strong>Sprache:</strong> ${data.language || 'Automatisch erkannt'}</p>
+                <p><strong>Ausgabedatei:</strong> ${data.output_file}</p>
+            </div>
+        `;
+
+        // Handle SRT format display
+        const outputFormat = document.getElementById('output-format')?.value?.toLowerCase();
+        if (outputFormat === 'srt') {
+            resultHtml += `
+                <div class="result-text srt-format">
+                    <h4>SRT-Untertitel mit Zeitstempeln:</h4>
+                    <pre class="srt-content">${data.text}</pre>
+                </div>
+            `;
+        } else {
+            resultHtml += `
+                <div class="result-text">
+                    <h4>Transkribierter Text:</h4>
+                    <pre>${data.text}</pre>
+                </div>
+            `;
+        }
+
+        this.resultContainer.innerHTML = resultHtml;
+    }
+
+    displayError(error) {
+        if (!this.resultContainer) return;
+
+        this.resultContainer.innerHTML = `
+            <div class="error-message">
+                <i class="fas fa-exclamation-circle"></i> Fehler bei der Transkription
+            </div>
+            <p>${error || 'Unbekannter Fehler'}</p>
+        `;
+    }
+}
+
+// Global instances
+let correctionManager;
+let progressManager;
+let resultManager;
+
+// Initialize managers when transcribe page loads
+if (window.location.pathname === '/transcribe' || window.location.pathname.includes('transcribe')) {
+    document.addEventListener('DOMContentLoaded', function() {
+        correctionManager = new TextCorrectionManager();
+        progressManager = new TwoPhaseProgressManager();
+        resultManager = new ResultDisplayManager();
+    });
 }

@@ -38,9 +38,10 @@ setup(
     ],
     extras_require={
         "chatbot": ["chromadb", "faiss-cpu", "sentence-transformers"],
+        "llm": ["llama-cpp-python>=0.2.0", "sentencepiece>=0.1.99", "nltk>=3.8", "transformers>=4.21.0", "packaging>=20.0"],
         "web": ["fastapi", "uvicorn", "jinja2", "python-multipart", "websockets", "httpx", "sounddevice"],
         "dev": ["pytest", "black", "isort", "flake8", "mypy"],
-        "full": ["chromadb", "faiss-cpu", "sentence-transformers", "fastapi", "uvicorn", "jinja2", "python-multipart", "srt", "websockets", "httpx", "sounddevice"]
+        "full": ["chromadb", "faiss-cpu", "sentence-transformers", "fastapi", "uvicorn", "jinja2", "python-multipart", "srt", "websockets", "httpx", "sounddevice", "llama-cpp-python>=0.2.0", "sentencepiece>=0.1.99", "nltk>=3.8", "transformers>=4.21.0", "packaging>=20.0"]
     },
     entry_points={
         "console_scripts": [

@@ -1,0 +1,36 @@
+# Test dependencies for Whisper Transcription Tool
+
+# Core testing framework
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-asyncio>=0.21.0
+pytest-timeout>=2.1.0
+pytest-mock>=3.11.0
+pytest-xdist>=3.0.0
+
+# Test utilities
+coverage>=7.0.0
+mock>=4.0.0
+
+# Performance testing
+pytest-benchmark>=4.0.0
+psutil>=5.9.0
+
+# API testing
+httpx>=0.24.0
+websockets>=11.0.0
+
+# Additional test utilities
+freezegun>=1.2.0
+factory-boy>=3.2.0
+faker>=18.0.0
+
+# Code quality
+flake8>=6.0.0
+black>=23.0.0
+isort>=5.12.0
+mypy>=1.0.0
+
+# Security
+safety>=2.3.0
+bandit>=1.7.0

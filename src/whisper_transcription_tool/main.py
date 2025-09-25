@@ -74,6 +74,22 @@ def parse_args():
         default=None,
         help="Max duration per subtitle segment in seconds"
     )
+    transcribe_parser.add_argument(
+        "--enable-correction",
+        action="store_true",
+        help="Enable text correction using LeoLM model"
+    )
+    transcribe_parser.add_argument(
+        "--correction-level",
+        choices=["light", "standard", "strict"],
+        default="standard",
+        help="Text correction level (default: standard)"
+    )
+    transcribe_parser.add_argument(
+        "--dialect-normalization",
+        action="store_true",
+        help="Enable dialect normalization during text correction"
+    )
     
     # Extract command
     extract_parser = subparsers.add_parser("extract", help="Extract audio from video")
@@ -117,15 +133,23 @@ def parse_args():
     # Web command
     web_parser = subparsers.add_parser("web", help="Start web interface")
     web_parser.add_argument(
-        "--host", 
+        "--host",
         default="0.0.0.0",
         help="Host to bind to"
     )
     web_parser.add_argument(
-        "--port", 
+        "--port",
         type=int,
         default=8000,
         help="Port to bind to"
+    )
+
+    # Status command
+    status_parser = subparsers.add_parser("status", help="Check system and text correction status")
+    status_parser.add_argument(
+        "--correction",
+        action="store_true",
+        help="Show only text correction status"
     )
     
     return parser.parse_args()
@@ -147,6 +171,14 @@ def main():
     if args.command == "transcribe":
         from .module1_transcribe import transcribe_audio
         
+        # Update config with CLI overrides for text correction
+        if args.enable_correction:
+            config.setdefault("text_correction", {})["enabled"] = True
+        if hasattr(args, 'correction_level') and args.correction_level:
+            config.setdefault("text_correction", {})["correction_level"] = args.correction_level
+        if args.dialect_normalization:
+            config.setdefault("text_correction", {})["dialect_normalization"] = True
+
         result = transcribe_audio(
             audio_path=args.audio_file,
             output_format=args.output_format,
@@ -218,7 +250,31 @@ def main():
         except ImportError:
             logger.error("Web dependencies not installed. Install with pip install 'whisper_transcription_tool[web]'")
             return 1
-    
+
+    elif args.command == "status":
+        from .core.config import print_correction_status, is_correction_available
+
+        if args.correction:
+            # Show only text correction status
+            print_correction_status(config)
+        else:
+            # Show general system status
+            print(f"Whisper Transcription Tool - System Status")
+            print(f"Config loaded: {'✅' if config else '❌'}")
+            print(f"Project root: {config.get('whisper', {}).get('model_path', 'Unknown')}")
+
+            # Check text correction
+            correction_status = is_correction_available(config)
+            correction_enabled = config.get("text_correction", {}).get("enabled", False)
+
+            print(f"Text correction: {'✅ Enabled' if correction_enabled else '❌ Disabled'}")
+            print(f"Text correction available: {'✅ Yes' if correction_status['available'] else '❌ No'}")
+
+            if not correction_status['available']:
+                print(f"  Reason: {correction_status['reason']}")
+
+            print("\nUse --correction flag to see detailed text correction status")
+
     else:
         logger.error("No command specified")
         return 1

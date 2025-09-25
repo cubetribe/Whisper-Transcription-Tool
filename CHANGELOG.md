@@ -2,6 +2,86 @@
 
 All notable changes to the Whisper Transcription Tool will be documented in this file.
 
+## [0.9.7.1] - 2025-09-25 - UNGETESTET
+
+### ⚠️ WICHTIGER HINWEIS
+**Dies ist ein ungetesteter Stand nach umfangreichen Umbaumaßnahmen!**
+
+Diese Version enthält eine vollständige Integration der LLM-basierten Textkorrektur mit LeoLM-13B. Die Code-Integration ist abgeschlossen, aber die Funktionalität wurde noch nicht getestet.
+
+### 🚀 Neue Features (Implementiert aber ungetestet)
+
+#### LLM-Textkorrektur System
+- **Vollständige LeoLM-13B Integration**:
+  - Lokales deutsches Sprachmodell für Textkorrektur
+  - GGUF-Format mit llama-cpp-python Backend
+  - Metal GPU-Beschleunigung für Apple Silicon
+- **Intelligentes Text-Chunking**:
+  - Respektiert Satzgrenzen bei der Textaufteilung
+  - 2048 Token Kontext-Fenster pro Chunk
+  - Überlappende Chunks für Kontexterhalt
+- **Memory-effizientes Model-Swapping**:
+  - Automatisches Entladen von Whisper vor LLM-Load
+  - Thread-sicherer ResourceManager
+  - 6GB RAM-Schwellwert für sichere Ausführung
+- **Drei Korrektur-Modi**:
+  - Light: Nur Rechtschreibung und Grammatik
+  - Standard: + Stil und Lesbarkeit
+  - Strict: + Formelle Sprache und Struktur
+- **Batch-Processing**:
+  - Parallele Verarbeitung mehrerer Dateien
+  - Intelligente Queue-Verwaltung
+  - Fortschrittsanzeige pro Datei
+- **Frontend-Integration**:
+  - Checkbox zur Aktivierung der Textkorrektur
+  - Dropdown für Korrektur-Level-Auswahl
+  - Zwei-Phasen-Fortschrittsanzeige (Transkription → Korrektur)
+  - Echtzeit-Status über WebSockets
+
+#### Module und Komponenten
+- **Neues Modul `module5_text_correction`**:
+  - `llm_corrector.py`: LeoLM-Integration
+  - `batch_processor.py`: Chunk-Management
+  - `resource_manager.py`: Memory-Management
+  - `correction_prompts.py`: Deutsche Korrektur-Templates
+  - `fallback_corrector.py`: Regel-basierte Fallback-Korrektur
+  - `monitoring.py`: Performance-Überwachung
+- **Erweiterte Konfiguration**:
+  - Neue `text_correction` Sektion in config.py
+  - Platform-spezifische GPU-Erkennung
+  - Automatische Capability-Detection
+
+#### Technische Details
+- **Dependencies hinzugefügt**:
+  - llama-cpp-python>=0.2.0
+  - sentencepiece>=0.1.99
+  - nltk>=3.8
+  - transformers>=4.21.0
+- **WebSocket-Events**:
+  - correction_started
+  - correction_progress
+  - correction_completed
+  - correction_error
+- **Error-Handling**:
+  - Graceful Fallback zu regel-basierter Korrektur
+  - Memory-Monitoring mit automatischem Abort
+  - Retry-Mechanismen für transiente Fehler
+
+### 📋 TODO - Tests erforderlich
+- [ ] LeoLM Model-Loading testen
+- [ ] Textkorrektur-Qualität evaluieren
+- [ ] Memory-Swapping verifizieren
+- [ ] Batch-Processing Stabilität prüfen
+- [ ] WebSocket-Updates validieren
+- [ ] Error-Recovery testen
+- [ ] Performance-Benchmarks durchführen
+
+### 🛠️ Bekannte Einschränkungen
+- Model-Pfad muss manuell konfiguriert werden
+- Erste Model-Ladung dauert 30-60 Sekunden
+- Benötigt mindestens 6GB freien RAM
+- Nur deutsche Textkorrektur implementiert
+
 ## [0.9.7] - 2025-09-17
 
 ### 🎵 New Audio Format Support
@@ -30,6 +110,10 @@ All notable changes to the Whisper Transcription Tool will be documented in this
 #### Roadmap
 - Telefonaufzeichnung bleibt vorerst deaktiviert, Stabilitätsarbeiten folgen in einem späteren Release.
 - Nächster Entwicklungsschwerpunkt ist die Textkorrektur-Pipeline als Post-Processing-Schritt.
+
+#### Changed
+- Repository in `WhisperCC_MacOS_Local` umbenannt (vormals `Whisper-Transcription-Tool`).
+- Dokumentation und Klon-URLs an den neuen Namen angepasst.
 
 ## [0.9.5.1] - 2025-08-31
 
@@ -77,7 +161,7 @@ All notable changes to the Whisper Transcription Tool will be documented in this
 
 #### Changed
 - **Repository Migration**: Moved to new GitHub URL
-  - New: https://github.com/cubetribe/Whisper-Transcription-Tool
+  - New: https://github.com/cubetribe/WhisperCC_MacOS_Local (ehemals Whisper-Transcription-Tool)
   - Clean repository without personal data in history
 - **License Update**: Changed from MIT to Personal Use License with commercial options
 - **Scripts Organization**: Cleaned up scripts folder

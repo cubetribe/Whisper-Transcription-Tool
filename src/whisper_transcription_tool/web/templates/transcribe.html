@@ -60,6 +60,44 @@
                 </div>
                 <small>Leer lassen für das Standard-Ausgabeverzeichnis: {{ default_output_dir }}</small>
             </div>
+
+            <!-- Text Correction Controls -->
+            <div class="form-group">
+                <div class="correction-controls">
+                    <h4><i class="fas fa-spell-check"></i> Textkorrektur mit LeoLM</h4>
+
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="enable-correction" name="enable_correction">
+                        <label for="enable-correction">
+                            Textkorrektur aktivieren
+                            <small>Rechtschreibung, Grammatik und Satzzeichen werden automatisch korrigiert</small>
+                        </label>
+                    </div>
+
+                    <div id="correction-options" class="correction-options" style="display: none;">
+                        <div class="form-group">
+                            <label for="correction-level">Korrekturstufe:</label>
+                            <select id="correction-level" name="correction_level" class="correction-level-select">
+                                <option value="light">Leicht - Nur offensichtliche Fehler</option>
+                                <option value="standard" selected>Standard - Rechtschreibung und Grammatik</option>
+                                <option value="strict">Strikt - Umfassende Korrektur inkl. Stil</option>
+                            </select>
+                        </div>
+
+                        <div class="dialect-toggle">
+                            <input type="checkbox" id="normalize-dialect" name="normalize_dialect">
+                            <label for="normalize-dialect">Dialekt-Normalisierung aktivieren</label>
+                        </div>
+
+                        <div id="model-status" class="model-status">
+                            <div class="status-indicator" id="correction-availability">
+                                <i class="fas fa-circle-notch fa-spin"></i> Modellverfügbarkeit wird geprüft...
+                            </div>
+                            <div class="ram-requirement" id="ram-info"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
             
             <!-- SRT-spezifische Einstellungen (anfangs versteckt) -->
             <div id="srt-options" class="form-group" style="display: none;">
@@ -90,9 +128,41 @@
     
     <div class="result-container" id="result-container" style="display: none;">
         <h3>Transkriptionsergebnis</h3>
-        <div class="progress-container" id="progress-container">
+
+        <!-- Two-Phase Progress Display -->
+        <div class="progress-phases" id="progress-phases" style="display: none;">
+            <div class="phase" id="transcription-phase">
+                <div class="phase-header">
+                    <div class="phase-title" id="transcription-phase-title">
+                        <i class="fas fa-microphone"></i> Phase 1: Transkription
+                    </div>
+                    <div class="phase-eta" id="transcription-eta"></div>
+                </div>
+                <div class="phase-progress">
+                    <div class="phase-progress-bar" id="transcription-progress-bar"></div>
+                </div>
+                <div class="chunk-info" id="transcription-chunk-info"></div>
+            </div>
+
+            <div class="phase" id="correction-phase">
+                <div class="phase-header">
+                    <div class="phase-title" id="correction-phase-title">
+                        <i class="fas fa-spell-check"></i> Phase 2: Textkorrektur
+                    </div>
+                    <div class="phase-eta" id="correction-eta"></div>
+                </div>
+                <div class="phase-progress">
+                    <div class="phase-progress-bar" id="correction-progress-bar"></div>
+                </div>
+                <div class="chunk-info" id="correction-chunk-info"></div>
+            </div>
+        </div>
+
+        <!-- Legacy Progress Bar (fallback) -->
+        <div class="progress-container" id="progress-container" style="display: none;">
             <div class="progress-bar" id="progress-bar"></div>
         </div>
+
         <div id="transcription-result"></div>
         
         <!-- Terminal Output Container -->
@@ -163,15 +233,34 @@ document.addEventListener('DOMContentLoaded', function() {
         ws.onmessage = function(event) {
             const data = JSON.parse(event.data);
             console.log('Progress update received:', data);
-            
+
             if (data.task === 'transcription') {
-                // Update progress bar
-                if (data.progress !== undefined) {
-                    progressBar.style.width = data.progress + '%';
+                // Use new progress manager if available
+                if (window.progressManager) {
+                    const eta = window.progressManager.calculateETA(data.progress, window.progressManager.startTime);
+
+                    if (data.phase === 'transcription') {
+                        window.progressManager.updateProgress('transcription', data.progress, data.chunk_current, data.chunk_total, eta);
+                    } else if (data.phase === 'correction') {
+                        window.progressManager.completePhase('transcription');
+                        window.progressManager.setPhase('correction', 'active');
+                        window.progressManager.updateProgress('correction', data.progress, data.chunk_current, data.chunk_total, eta);
+                    } else if (data.phase === 'completed') {
+                        if (data.correction_enabled) {
+                            window.progressManager.completePhase('correction');
+                        } else {
+                            window.progressManager.completePhase('transcription');
+                        }
+                    }
+                } else {
+                    // Fallback to legacy progress bar
+                    if (data.progress !== undefined) {
+                        progressBar.style.width = data.progress + '%';
+                    }
                 }
-                
+
                 // Update status text
-                if (data.status) {
+                if (data.status && !window.progressManager) {
                     transcriptionResult.innerHTML = `
                         <div class="status-update">
                             <i class="fas fa-spinner fa-spin"></i> ${data.status}
@@ -179,16 +268,20 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                     `;
                 }
-                
+
                 // Handle terminal output
                 if (data.terminal_output) {
                     addTerminalMessage(data.terminal_output);
                 }
-                
+
                 // Handle completion
                 if (data.phase === 'completed') {
-                    progressBar.style.width = '100%';
-                    progressBar.classList.add('complete');
+                    if (window.progressManager) {
+                        window.progressManager.hideProgress();
+                    } else {
+                        progressBar.style.width = '100%';
+                        progressBar.classList.add('complete');
+                    }
                 }
             }
         };
@@ -211,6 +304,16 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Connect WebSocket on page load
     connectWebSocket();
+
+    // Initialize managers for this page
+    if (typeof TextCorrectionManager !== 'undefined' &&
+        typeof TwoPhaseProgressManager !== 'undefined' &&
+        typeof ResultDisplayManager !== 'undefined') {
+
+        window.correctionManager = new TextCorrectionManager();
+        window.progressManager = new TwoPhaseProgressManager();
+        window.resultManager = new ResultDisplayManager();
+    }
     
     // Terminal output functions
     function addTerminalMessage(message) {
@@ -794,14 +897,25 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('SRT Linebreaks:', document.getElementById('srt-linebreaks').checked);
         }
         
+        // Check if correction is enabled
+        const correctionEnabled = document.getElementById('enable-correction')?.checked || false;
+
         // UI aktualisieren
         resultContainer.style.display = 'block';
-        progressContainer.style.display = 'block';
-        progressBar.style.width = '0%';
         clearTerminal(); // Clear terminal output when starting new transcription
+
+        // Use new progress manager if available
+        if (window.progressManager) {
+            window.progressManager.startProgress(correctionEnabled);
+        } else {
+            // Fallback to legacy progress bar
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+        }
+
         transcriptionResult.innerHTML = `
             <div class="status-update">
-                <i class="fas fa-spinner fa-spin"></i> Transkription läuft...
+                <i class="fas fa-spinner fa-spin"></i> ${correctionEnabled ? 'Transkription und Korrektur' : 'Transkription'} läuft...
                 <button id="cancel-button" class="btn btn-danger btn-sm ml-3" style="margin-left: 1rem;">
                     <i class="fas fa-stop"></i> Abbrechen
                 </button>
@@ -838,58 +952,68 @@ document.addEventListener('DOMContentLoaded', function() {
             return response.json();
         })
         .then(data => {
-            progressContainer.style.display = 'none';
-            
+            // Hide progress displays
+            if (window.progressManager) {
+                window.progressManager.hideProgress();
+            } else {
+                progressContainer.style.display = 'none';
+            }
+
             if (data.success) {
-                // Basisinhalt für erfolgreiche Transkription erstellen
-                let resultHtml = `
-                    <div class="success-message">
-                        <i class="fas fa-check-circle"></i> Transkription erfolgreich!
-                    </div>
-                    <div class="result-info">
-                        <p><strong>Modell:</strong> ${data.model}</p>
-                        <p><strong>Sprache:</strong> ${data.language || 'Automatisch erkannt'}</p>
-                        <p><strong>Ausgabedatei:</strong> ${data.output_file}</p>
-                    </div>
-                `;
-                
-                // SRT Format mit Zeitstempeln anzeigen
-                if (outputFormatSelect.value.toLowerCase() === 'srt') {
-                    resultHtml += `
-                        <div class="result-text srt-format">
-                            <h4>SRT-Untertitel mit Zeitstempeln:</h4>
-                            <pre class="srt-content">${data.text}</pre>
-                        </div>
-                    `;
-                    
-                    // CSS für SRT-Format
-                    const srtStyle = document.createElement('style');
-                    srtStyle.textContent = `
-                        .srt-format pre {
-                            background-color: #f8f9fa;
-                            border: 1px solid #dee2e6;
-                            border-radius: 4px;
-                            padding: 15px;
-                            max-height: 400px;
-                            overflow-y: auto;
-                        }
-                        .srt-content {
-                            line-height: 1.5;
-                            font-family: monospace;
-                        }
-                    `;
-                    document.head.appendChild(srtStyle);
+                // Use new result manager if available
+                if (window.resultManager) {
+                    window.resultManager.displayResults(data);
                 } else {
-                    // Standard Textformat für andere Formate
-                    resultHtml += `
-                        <div class="result-text">
-                            <h4>Transkribierter Text:</h4>
-                            <pre>${data.text}</pre>
+                    // Fallback to legacy display
+                    let resultHtml = `
+                        <div class="success-message">
+                            <i class="fas fa-check-circle"></i> Transkription erfolgreich!
+                        </div>
+                        <div class="result-info">
+                            <p><strong>Modell:</strong> ${data.model}</p>
+                            <p><strong>Sprache:</strong> ${data.language || 'Automatisch erkannt'}</p>
+                            <p><strong>Ausgabedatei:</strong> ${data.output_file}</p>
                         </div>
                     `;
+
+                    // SRT Format mit Zeitstempeln anzeigen
+                    if (outputFormatSelect.value.toLowerCase() === 'srt') {
+                        resultHtml += `
+                            <div class="result-text srt-format">
+                                <h4>SRT-Untertitel mit Zeitstempeln:</h4>
+                                <pre class="srt-content">${data.text}</pre>
+                            </div>
+                        `;
+
+                        // CSS für SRT-Format
+                        const srtStyle = document.createElement('style');
+                        srtStyle.textContent = `
+                            .srt-format pre {
+                                background-color: #f8f9fa;
+                                border: 1px solid #dee2e6;
+                                border-radius: 4px;
+                                padding: 15px;
+                                max-height: 400px;
+                                overflow-y: auto;
+                            }
+                            .srt-content {
+                                line-height: 1.5;
+                                font-family: monospace;
+                            }
+                        `;
+                        document.head.appendChild(srtStyle);
+                    } else {
+                        // Standard Textformat für andere Formate
+                        resultHtml += `
+                            <div class="result-text">
+                                <h4>Transkribierter Text:</h4>
+                                <pre>${data.text}</pre>
+                            </div>
+                        `;
+                    }
+
+                    transcriptionResult.innerHTML = resultHtml;
                 }
-                
-                transcriptionResult.innerHTML = resultHtml;
                 
                 // Download-Button anzeigen
                 downloadButton.style.display = 'inline-block';
@@ -920,34 +1044,52 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 };
             } else {
+                // Use new result manager if available
+                if (window.resultManager) {
+                    window.resultManager.displayError(data.error || 'Unbekannter Fehler');
+                } else {
+                    transcriptionResult.innerHTML = `
+                        <div class="error-message">
+                            <i class="fas fa-exclamation-circle"></i> Fehler bei der Transkription
+                        </div>
+                        <p>${data.error || 'Unbekannter Fehler'}</p>
+                    `;
+                }
+            }
+        })
+        .catch(error => {
+            // Hide progress displays
+            if (window.progressManager) {
+                window.progressManager.hideProgress();
+            } else {
+                progressContainer.style.display = 'none';
+            }
+
+            // Use new result manager if available
+            if (window.resultManager) {
+                window.resultManager.displayError(error.message);
+            } else {
                 transcriptionResult.innerHTML = `
                     <div class="error-message">
                         <i class="fas fa-exclamation-circle"></i> Fehler bei der Transkription
                     </div>
-                    <p>${data.error || 'Unbekannter Fehler'}</p>
+                    <p>${error.message}</p>
                 `;
             }
-        })
-        .catch(error => {
-            progressContainer.style.display = 'none';
-            transcriptionResult.innerHTML = `
-                <div class="error-message">
-                    <i class="fas fa-exclamation-circle"></i> Fehler bei der Transkription
-                </div>
-                <p>${error.message}</p>
-            `;
         });
         
-        // Simulierter Fortschritt (da wir keinen echten Fortschritt vom Server bekommen)
-        let progress = 0;
-        const progressInterval = setInterval(() => {
-            progress += 1;
-            if (progress > 95) {
-                clearInterval(progressInterval);
-            } else {
-                progressBar.style.width = progress + '%';
-            }
-        }, 500);
+        // Simulierter Fortschritt (nur für legacy progress bar)
+        if (!window.progressManager) {
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += 1;
+                if (progress > 95) {
+                    clearInterval(progressInterval);
+                } else {
+                    progressBar.style.width = progress + '%';
+                }
+            }, 500);
+        }
     });
 });
 </script>

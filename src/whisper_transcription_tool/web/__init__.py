@@ -67,36 +67,36 @@ last_progress_data = None
 async def progress_event_handler(event: Event):
     """Handles progress events and sends them to relevant clients."""
     global last_progress_data, progress_websockets
-    
+
     try:
         if event.event_type == EventType.PROGRESS_UPDATE:
             # Log the received event
             status = event.data.get('status', '')
             progress = event.data.get('progress', 0)
             task = event.data.get('task', 'unknown')
-            
+
             logger.info(f"PROGRESS_HANDLER: {task} event - Status: {status}, Progress: {progress}%")
-            
+
             # Don't require specific fields - just pass the event data through
             # The frontend will handle different event types appropriately
-            
+
             # Speichere die letzte Fortschrittsmeldung für neu verbundene Clients
             last_progress_data = event.data.copy()
-            
+
             # Direkter Zugriff auf progress_websockets mit Kopie der Menge
             current_sockets = list(progress_websockets)
             socket_count = len(current_sockets)
-            
+
             # Überprüfe, ob es aktive WebSockets gibt
             if socket_count == 0:
                 logger.warning("PROGRESS_HANDLER: No active websockets, skipping broadcast.")
                 return
-            
+
             logger.info(f"PROGRESS_HANDLER: Broadcasting to {socket_count} active websockets")
-            
+
             # Erstelle die Nachricht einmal für alle Clients
             message = json.dumps(event.data)
-            
+
             # Sende an alle aktiven Verbindungen
             for ws in current_sockets:
                 try:
@@ -109,6 +109,30 @@ async def progress_event_handler(event: Event):
                         logger.info(f"Removed faulty websocket. Remaining: {len(progress_websockets)}")
                     except Exception as e2:
                         logger.error(f"Error removing websocket: {e2}")
+        elif event.event_type == EventType.CUSTOM:
+            # Handle custom events including correction workflow events
+            event_subtype = event.data.get('type', '')
+
+            # Log correction events
+            if event_subtype in ['correction_started', 'correction_completed', 'correction_error']:
+                logger.info(f"PROGRESS_HANDLER: Correction event - {event_subtype}")
+
+            # Store last event for new clients
+            last_progress_data = event.data.copy()
+
+            # Send to WebSocket clients
+            current_sockets = list(progress_websockets)
+            if current_sockets:
+                message = json.dumps(event.data)
+                for ws in current_sockets:
+                    try:
+                        await ws.send_text(message)
+                    except Exception as e:
+                        logger.error(f"Failed to send custom event to WebSocket: {e}")
+                        try:
+                            progress_websockets.discard(ws)
+                        except Exception:
+                            pass
         else:
             logger.warning(f"Received event with unexpected type: {event.event_type}")
 
@@ -117,8 +141,9 @@ async def progress_event_handler(event: Event):
     except Exception as e:
         logger.error(f"PROGRESS_HANDLER: Unexpected error in handler! Details: {e}", exc_info=True)
 
-# Event-Handler für Fortschrittsanzeigen registrieren
+# Event-Handler für Fortschrittsanzeigen und benutzerdefinierte Events registrieren
 subscribe(EventType.PROGRESS_UPDATE, progress_event_handler)
+subscribe(EventType.CUSTOM, progress_event_handler)
 
 @app.websocket("/ws/progress")
 async def progress_websocket(websocket: WebSocket):
@@ -341,7 +366,11 @@ async def transcribe_audio_api(
     output_path: Optional[str] = Form(None),
     srt_max_chars: Optional[str] = Form(None),  # Als String akzeptieren
     srt_max_duration: Optional[str] = Form(None),  # Als String akzeptieren
-    srt_linebreaks: Optional[str] = Form("true")  # Checkbox: "true" oder "false"
+    srt_linebreaks: Optional[str] = Form("true"),  # Checkbox: "true" oder "false"
+    # New correction parameters
+    enable_correction: bool = Form(False),
+    correction_level: str = Form("standard"),
+    dialect_normalization: bool = Form(False)
 ):
     try:
         # Import here to avoid circular imports
@@ -419,7 +448,7 @@ async def transcribe_audio_api(
         # Log SRT-Parameter
         if output_format.lower() == 'srt':
             logger.info(f"SRT-Parameter: max_chars={srt_max_chars_int}, max_duration={srt_max_duration_float}")
-            
+
             # Für SRT-Format lesen wir direkt aus der Datei, um Zeitstempel zu erhalten
             if result.success and result.output_file and os.path.exists(result.output_file):
                 try:
@@ -430,14 +459,171 @@ async def transcribe_audio_api(
                     logger.info(f"SRT-Inhalt für Anzeige gelesen, Länge: {len(srt_content)} Zeichen")
                 except Exception as e:
                     logger.error(f"Fehler beim Lesen der SRT-Datei: {e}")
-        
-        # Return result
+
+        # Run text correction if enabled and transcription was successful
+        correction_result = None
+        if enable_correction and result.success and result.output_file:
+            try:
+                # Validate correction parameters
+                valid_levels = ["minimal", "standard", "enhanced"]
+                if correction_level not in valid_levels:
+                    correction_level = "standard"
+                    logger.warning(f"Invalid correction level, using 'standard'")
+
+                logger.info(f"Running text correction with level: {correction_level}, dialect_normalization: {dialect_normalization}")
+
+                # Import correction module
+                from ..module5_text_correction import correct_transcription
+
+                # Generate a user ID for progress tracking
+                import uuid
+                user_id = str(uuid.uuid4())[:8]
+
+                # Run correction
+                correction_result = await correct_transcription(
+                    transcription_file=result.output_file,
+                    enable_correction=True,
+                    correction_level=correction_level,
+                    dialect_normalization=dialect_normalization,
+                    config=config,
+                    user_id=user_id
+                )
+
+                if correction_result.get("success", False):
+                    logger.info(f"Text correction completed successfully")
+                    # Update result with corrected information
+                    result_dict = result.to_dict()
+                    result_dict["correction"] = {
+                        "enabled": True,
+                        "success": True,
+                        "corrected_file": correction_result.get("corrected_file"),
+                        "metadata_file": correction_result.get("metadata_file"),
+                        "improvement_score": correction_result.get("correction_result", {}).get("improvement_score", 0)
+                    }
+
+                    # If correction was successful, update the main result with corrected text for display
+                    corrected_file = correction_result.get("corrected_file")
+                    if corrected_file and os.path.exists(corrected_file):
+                        try:
+                            with open(corrected_file, 'r', encoding='utf-8') as f:
+                                corrected_text = f.read()
+                            result_dict["corrected_text"] = corrected_text
+                            logger.info(f"Added corrected text to result for display")
+                        except Exception as e:
+                            logger.error(f"Error reading corrected file: {e}")
+
+                    return JSONResponse(result_dict)
+                else:
+                    logger.error(f"Text correction failed: {correction_result.get('error', 'Unknown error')}")
+                    # Continue with original result but add correction error info
+                    result_dict = result.to_dict()
+                    result_dict["correction"] = {
+                        "enabled": True,
+                        "success": False,
+                        "error": correction_result.get("error", "Unknown correction error")
+                    }
+                    return JSONResponse(result_dict)
+
+            except Exception as e:
+                logger.error(f"Error during text correction: {e}")
+                # Continue with original result but add correction error
+                result_dict = result.to_dict()
+                result_dict["correction"] = {
+                    "enabled": True,
+                    "success": False,
+                    "error": f"Correction failed: {str(e)}"
+                }
+                return JSONResponse(result_dict)
+        else:
+            # No correction requested or transcription failed
+            result_dict = result.to_dict()
+            if enable_correction:
+                result_dict["correction"] = {
+                    "enabled": True,
+                    "success": False,
+                    "error": "Transcription failed, correction skipped" if not result.success else "Correction not available"
+                }
+            else:
+                result_dict["correction"] = {"enabled": False}
+            return JSONResponse(result_dict)
+
+        # Fallback return (should not reach here)
         return JSONResponse(result.to_dict())
     
     except Exception as e:
         logger.error(f"Error transcribing audio: {e}")
         return JSONResponse(
             {"success": False, "error": str(e)},
+            status_code=500
+        )
+
+
+@app.get("/api/correction-status")
+async def correction_status_api():
+    """
+    API endpoint to check text correction status and availability.
+
+    Returns:
+        JSON response with correction availability, model info, and requirements
+    """
+    try:
+        from ..module5_text_correction import check_correction_availability
+
+        status = check_correction_availability()
+
+        # Add additional system information
+        import psutil
+        cpu_count = psutil.cpu_count()
+        cpu_percent = psutil.cpu_percent(interval=1)
+
+        status["system_info"] = {
+            "cpu_count": cpu_count,
+            "cpu_percent": cpu_percent,
+            "platform": "macOS" if os.name == "posix" else "Windows" if os.name == "nt" else "Linux"
+        }
+
+        # Add available correction levels based on resources
+        available_ram_gb = status.get("available_ram_gb", 0)
+        status["available_levels"] = []
+
+        if available_ram_gb >= 2.0:
+            status["available_levels"].append({
+                "level": "minimal",
+                "name": "Minimal Correction",
+                "description": "Basic grammar and punctuation fixes",
+                "ram_required_gb": 2.0
+            })
+
+        if available_ram_gb >= 4.0:
+            status["available_levels"].append({
+                "level": "standard",
+                "name": "Standard Correction",
+                "description": "Grammar, punctuation, and style improvements",
+                "ram_required_gb": 4.0
+            })
+
+        if available_ram_gb >= 8.0:
+            status["available_levels"].append({
+                "level": "enhanced",
+                "name": "Enhanced Correction",
+                "description": "Full AI-powered text enhancement with context awareness",
+                "ram_required_gb": 8.0
+            })
+
+        return JSONResponse({
+            "success": True,
+            **status
+        })
+
+    except Exception as e:
+        logger.error(f"Error checking correction status: {e}")
+        return JSONResponse(
+            {
+                "success": False,
+                "available": False,
+                "status": "error",
+                "error": str(e)
+            },
             status_code=500
         )
 

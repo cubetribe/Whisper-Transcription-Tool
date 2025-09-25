@@ -263,13 +263,46 @@ def extract_thumbnail(
     return run_command(cmd)
 
 
+def convert_opus_to_mp3(
+    ffmpeg_path: str,
+    opus_path: str,
+    output_path: str,
+    bitrate: str = "128k"
+) -> Tuple[int, str, str]:
+    """
+    Convert Opus audio file to MP3.
+
+    Args:
+        ffmpeg_path: Path to FFmpeg binary
+        opus_path: Path to Opus file
+        output_path: Path to save MP3 file
+        bitrate: Audio bitrate (e.g., "128k")
+
+    Returns:
+        Tuple of (return_code, stdout, stderr)
+    """
+    # Prepare command
+    cmd = [
+        ffmpeg_path,
+        "-i", opus_path,
+        "-c:a", "libmp3lame",  # Use MP3 encoder
+        "-b:a", bitrate,       # Audio bitrate
+        "-y",                  # Overwrite output file
+        output_path
+    ]
+
+    # Run FFmpeg
+    logger.debug(f"Converting Opus to MP3: {' '.join(cmd)}")
+    return run_command(cmd)
+
+
 def check_ffmpeg_capabilities(ffmpeg_path: str) -> Dict[str, bool]:
     """
     Check FFmpeg capabilities.
-    
+
     Args:
         ffmpeg_path: Path to FFmpeg binary
-        
+
     Returns:
         Dictionary with capability flags
     """
@@ -284,7 +317,7 @@ def check_ffmpeg_capabilities(ffmpeg_path: str) -> Dict[str, bool]:
         "has_vaapi": False,
         "has_videotoolbox": False,
     }
-    
+
     try:
         # Run FFmpeg with -codecs flag
         result = subprocess.run(
@@ -292,10 +325,10 @@ def check_ffmpeg_capabilities(ffmpeg_path: str) -> Dict[str, bool]:
             capture_output=True,
             text=True
         )
-        
+
         if result.returncode == 0:
             output = result.stdout.lower()
-            
+
             # Check for encoders
             capabilities["has_libmp3lame"] = "libmp3lame" in output
             capabilities["has_libvorbis"] = "libvorbis" in output
@@ -303,13 +336,13 @@ def check_ffmpeg_capabilities(ffmpeg_path: str) -> Dict[str, bool]:
             capabilities["has_hevc"] = "hevc" in output or "h265" in output
             capabilities["has_h264"] = "h264" in output
             capabilities["has_aac"] = "aac" in output
-            
+
             # Check for hardware acceleration
             capabilities["has_cuda"] = "cuda" in output
             capabilities["has_vaapi"] = "vaapi" in output
             capabilities["has_videotoolbox"] = "videotoolbox" in output
-    
+
     except Exception as e:
         logger.error(f"Error checking FFmpeg capabilities: {e}")
-    
+
     return capabilities

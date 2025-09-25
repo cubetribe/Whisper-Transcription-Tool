@@ -2,7 +2,7 @@
 
 🎙️ **A powerful, modular Python tool for audio/video transcription using Whisper.cpp**
 
-[![Version](https://img.shields.io/badge/version-0.9.5.1-blue.svg)](https://github.com/cubetribe/Whisper-Transcription-Tool)
+[![Version](https://img.shields.io/badge/version-0.9.7-blue.svg)](https://github.com/cubetribe/Whisper-Transcription-Tool)
 [![Python](https://img.shields.io/badge/python-3.8%2B-green.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-Personal%20Use%20%7C%20Commercial%20on%20Request-orange.svg)](LICENSE)
 [![Website](https://img.shields.io/badge/website-goaiex.com-orange.svg)](https://www.goaiex.com)
@@ -14,9 +14,11 @@
 - 🌐 **Web interface** with real-time progress updates
 - 📁 **Batch processing** for multiple files
 - 🎬 **Video support** with automatic audio extraction
+- 🖥️ **Refined GUI** with clearer workflows and status feedback
 - 📄 **Multiple output formats** (TXT, SRT, VTT, JSON)
 - 🧹 **Automatic cleanup** of temporary files
 - 🎯 **Phone recording** with dual-track support
+- 🎵 **Opus support** for WhatsApp voice messages
 
 ## 🚀 Quick Start
 
@@ -117,6 +119,12 @@ whisper-tool phone track_a.mp3 track_b.mp3
 - `large-v3` - Best accuracy (1550 MB)
 - **`large-v3-turbo`** - Best balance (recommended, 809 MB)
 
+## 🗺️ Roadmap & Next Steps
+
+- ✅ GUI-Überarbeitung ist in Version 0.9.7 live.
+- ⏸️ Telefonaufzeichnung bleibt vorerst im Code, aber wird erst nach Stabilitätsverbesserungen wieder aktiviert.
+- ✍️ Nächster Schwerpunkt: integrierte Textkorrektur-Pipeline für deutsche und englische Transkriptionen.
+
 ## 🛠️ Troubleshooting
 
 ### Permission Denied Error
@@ -185,6 +193,6 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
-**Version:** 0.9.5.1 | **Status:** Production Ready ✅
+**Version:** 0.9.7 | **Status:** Production Ready ✅
 
 Made with ❤️ by aiEX Academy for the transcription community

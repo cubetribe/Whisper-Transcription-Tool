@@ -5,16 +5,23 @@
     <div class="upload-container">
         <form id="transcribe-form" enctype="multipart/form-data">
             <div class="form-group">
-                <label for="audio-file">Audio- oder Videodatei(en) auswählen:</label>
-                <input type="file" id="audio-file" name="audio_file" accept="audio/*,video/mp4,video/x-m4v,video/quicktime,video/webm,video/mpeg,video/x-msvideo,video/x-matroska" multiple required>
-                <small>Unterstützte Formate: <br>
-                  <strong>Audio:</strong> MP3, WAV, FLAC, OGG, M4A<br>
-                  <strong>Video:</strong> MP4, MOV, WebM, MPEG, AVI, MKV</small>
-                <div id="file-count" class="mt-2" style="display: none;">
-                    <span class="badge bg-primary"><span id="selected-files">0</span> Dateien ausgewählt</span>
+                <label for="audio-file" class="form-label">Audio- oder Videodatei(en) auswählen:</label>
+                <input type="file" id="audio-file" name="audio_file" class="form-input"
+                       accept="audio/*,video/mp4,video/x-m4v,video/quicktime,video/webm,video/mpeg,video/x-msvideo,video/x-matroska"
+                       multiple required>
+                <small class="text-muted">
+                    <strong>Audio:</strong> MP3, WAV, FLAC, OGG, M4A, OPUS<br>
+                    <strong>Video:</strong> MP4, MOV, WebM, MPEG, AVI, MKV
+                </small>
+
+                <div id="file-count" class="status-indicator info mt-4" style="display: none;">
+                    <i class="fas fa-files"></i>
+                    <span id="selected-files">0</span> Dateien ausgewählt
                 </div>
-                <div class="info-message mt-2" style="background-color: #e7f3fe; border-left: 4px solid #2196F3; padding: 10px;">
-                    <i class="fas fa-info-circle"></i> Videodateien werden automatisch konvertiert, was je nach Größe länger dauern kann.
+
+                <div class="notification info mt-4">
+                    <i class="fas fa-info-circle"></i>
+                    Video- und Opus-Dateien werden automatisch konvertiert, was je nach Größe länger dauern kann.
                 </div>
             </div>
             

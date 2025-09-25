@@ -9,7 +9,7 @@ DEFAULT_OUTPUT_DIR = "~/transcriptions"
 DEFAULT_TEMP_DIR = "~/transcriptions/temp"
 
 # Unterstützte Audioformate
-SUPPORTED_AUDIO_FORMATS = [".wav", ".mp3", ".ogg", ".flac"]
+SUPPORTED_AUDIO_FORMATS = [".wav", ".mp3", ".ogg", ".flac", ".opus"]
 
 # Unterstützte Videoformate (für Audioextraktion)
 SUPPORTED_VIDEO_FORMATS = [".mp4", ".avi", ".mov", ".mkv", ".webm"]
@@ -24,4 +24,4 @@ CONFIG_FILENAME = ".whisper_tool.json"
 LOG_FILENAME = "whisper_tool.log"
 
 # Version des Tools
-VERSION = "0.9.5.1"
+VERSION = "0.9.7"

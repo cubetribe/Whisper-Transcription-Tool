@@ -14,7 +14,7 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import uvicorn
 from fastapi import FastAPI, File, Form, Request, UploadFile, WebSocket, WebSocketDisconnect, BackgroundTasks, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
@@ -212,18 +212,42 @@ async def transcribe_page(request: Request):
 async def download_file(file: str):
     """
     API endpoint for downloading a file.
-    
+
     Args:
         file: Path to the file to download
-    
+
     Returns:
         FileResponse with the file
     """
-    # Sicherheitscheck: Stelle sicher, dass die Datei im erlaubten Bereich liegt
-    if not os.path.exists(file) or not os.path.isfile(file):
-        return JSONResponse({"error": "Datei existiert nicht"}, status_code=404)
-        
-    return FileResponse(path=file, filename=os.path.basename(file))
+    try:
+        # Sicherheitscheck: Stelle sicher, dass die Datei im erlaubten Bereich liegt
+        if not os.path.exists(file) or not os.path.isfile(file):
+            logger.error(f"Download requested for non-existent file: {file}")
+            return JSONResponse({"error": "Datei existiert nicht"}, status_code=404)
+
+        # Bestimme den Content-Type basierend auf der Dateiendung
+        content_type = "application/octet-stream"
+        if file.lower().endswith('.txt'):
+            content_type = "text/plain; charset=utf-8"
+        elif file.lower().endswith('.srt'):
+            content_type = "text/plain; charset=utf-8"
+        elif file.lower().endswith('.vtt'):
+            content_type = "text/vtt; charset=utf-8"
+        elif file.lower().endswith('.json'):
+            content_type = "application/json; charset=utf-8"
+
+        filename = os.path.basename(file)
+        logger.info(f"Serving download for file: {filename}")
+
+        return FileResponse(
+            path=file,
+            filename=filename,
+            media_type=content_type,
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except Exception as e:
+        logger.error(f"Error serving file download: {e}")
+        return JSONResponse({"error": f"Fehler beim Herunterladen: {str(e)}"}, status_code=500)
 
 
 @app.get("/api/browse-directories")

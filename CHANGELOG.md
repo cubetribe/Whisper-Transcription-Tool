@@ -2,6 +2,35 @@
 
 All notable changes to the Whisper Transcription Tool will be documented in this file.
 
+## [0.9.7] - 2025-09-17
+
+### 🎵 New Audio Format Support
+
+#### Added
+- **Opus Audio Support**: WhatsApp voice messages now fully supported
+  - Automatic conversion from Opus to MP3 using FFmpeg
+  - Seamless integration with existing transcription pipeline
+  - Progress tracking during conversion process
+- **Enhanced GUI Updates**: Comprehensive interface improvements
+  - Updated transcription page to show Opus support
+  - Improved user notifications for conversion processes
+  - Better file format documentation
+
+#### Technical Improvements
+- **FFmpeg Integration**: Added `convert_opus_to_mp3()` function in ffmpeg_wrapper
+- **Automatic Detection**: Files ending in `.opus` are automatically converted
+- **Temp File Management**: Converted MP3 files stored in temp directory and cleaned up automatically
+- **Error Handling**: Robust error reporting for conversion failures
+
+#### UI/UX Updates
+- **Format Documentation**: Audio formats now show "MP3, WAV, FLAC, OGG, M4A, OPUS"
+- **User Guidance**: Info text updated to mention "Video- und Opus-Dateien werden automatisch konvertiert..."
+- **Progress Feedback**: Real-time status updates during Opus conversion process
+
+#### Roadmap
+- Telefonaufzeichnung bleibt vorerst deaktiviert, Stabilitätsarbeiten folgen in einem späteren Release.
+- Nächster Entwicklungsschwerpunkt ist die Textkorrektur-Pipeline als Post-Processing-Schritt.
+
 ## [0.9.5.1] - 2025-08-31
 
 ### 🔧 Installation & Scripts Update
@@ -160,6 +189,7 @@ All notable changes to the Whisper Transcription Tool will be documented in this
 
 ## Version History Summary
 
+- **0.9.7** - Opus audio support for WhatsApp voice messages and GUI improvements
 - **0.9.5.1** - Simplified installation with two essential scripts
 - **0.9.5** - Clean repository, enhanced documentation, simplified installation
 - **0.9.4** - UI improvements and model management

@@ -397,10 +397,56 @@ def transcribe_audio(
         error_msg = f"Audio file not found: {audio_path}"
         logger.error(error_msg)
         return TranscriptionResult(success=False, error=error_msg)
-    
+
     # Generate transcription ID for tracking
     import uuid
     transcription_id = str(uuid.uuid4())[:8]
+
+    # Check if file is Opus and convert to MP3 if needed
+    original_audio_path = audio_path
+    if audio_path.lower().endswith('.opus'):
+        logger.info(f"Detected Opus file, converting to MP3...")
+        publish(EventType.PROGRESS_UPDATE, {
+            'task': 'transcription',
+            'status': 'Konvertiere Opus zu MP3...',
+            'progress': 1,
+            'user_id': transcription_id,
+            'phase': 'conversion'
+        })
+
+        try:
+            from ..module2_extract.ffmpeg_wrapper import detect_ffmpeg, convert_opus_to_mp3
+
+            # Find FFmpeg
+            ffmpeg_path = detect_ffmpeg()
+            if not ffmpeg_path:
+                error_msg = "FFmpeg nicht gefunden. Benötigt für Opus-Konvertierung."
+                logger.error(error_msg)
+                return TranscriptionResult(success=False, error=error_msg)
+
+            # Create temp MP3 file
+            temp_dir = config.get("output", {}).get("temp_directory", tempfile.gettempdir())
+            ensure_directory_exists(temp_dir)
+
+            mp3_filename = os.path.splitext(os.path.basename(audio_path))[0] + '.mp3'
+            mp3_path = os.path.join(temp_dir, mp3_filename)
+
+            # Convert Opus to MP3
+            returncode, stdout, stderr = convert_opus_to_mp3(ffmpeg_path, audio_path, mp3_path)
+
+            if returncode != 0:
+                error_msg = f"Opus zu MP3 Konvertierung fehlgeschlagen: {stderr}"
+                logger.error(error_msg)
+                return TranscriptionResult(success=False, error=error_msg)
+
+            # Use converted MP3 for transcription
+            audio_path = mp3_path
+            logger.info(f"Opus erfolgreich zu MP3 konvertiert: {mp3_path}")
+
+        except Exception as e:
+            error_msg = f"Fehler bei Opus-Konvertierung: {str(e)}"
+            logger.error(error_msg)
+            return TranscriptionResult(success=False, error=error_msg)
     
     # Sende initiale Status-Nachricht
     publish(EventType.PROGRESS_UPDATE, {

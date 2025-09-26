@@ -324,7 +324,7 @@ class ErrorRecoveryManager:
     ) -> RecoveryResult:
         """Handle model not found errors by skipping model-based processing."""
 
-        model_name = error.details.get("model_name", "unknown")
+        model_name = getattr(error, 'details', {}).get("model_name", "unknown")
         text_logger.log_correction_error("ModelNotFoundError", f"Model '{model_name}' not found")
 
         # Return original text without correction
@@ -345,8 +345,8 @@ class ErrorRecoveryManager:
     ) -> RecoveryResult:
         """Handle insufficient memory by skipping memory-intensive operations."""
 
-        required = error.details.get("required_memory", "unknown")
-        available = error.details.get("available_memory", "unknown")
+        required = getattr(error, 'details', {}).get("required_memory", "unknown")
+        available = getattr(error, 'details', {}).get("available_memory", "unknown")
 
         text_logger.log_correction_error(
             "InsufficientMemoryError",
@@ -371,8 +371,8 @@ class ErrorRecoveryManager:
     ) -> RecoveryResult:
         """Handle model load errors by skipping model-based processing."""
 
-        model_name = error.details.get("model_name", "unknown")
-        reason = error.details.get("reason", "unknown")
+        model_name = getattr(error, 'details', {}).get("model_name", "unknown")
+        reason = getattr(error, 'details', {}).get("reason", "unknown")
 
         text_logger.log_correction_error("ModelLoadError", f"Model '{model_name}': {reason}")
 
@@ -414,7 +414,7 @@ class ErrorRecoveryManager:
     ) -> RecoveryResult:
         """Handle LLM inference errors by returning partial results or original text."""
 
-        partial_result = error.details.get("partial_result")
+        partial_result = getattr(error, 'details', {}).get("partial_result")
 
         if partial_result:
             text_logger.log_correction_error("LLMInferenceError", "Partial correction available")

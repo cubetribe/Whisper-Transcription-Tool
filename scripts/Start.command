@@ -3,7 +3,7 @@
 #########################################
 # Whisper Transcription Tool
 # Start Script for macOS
-# Version: 0.9.7.2
+# Version: 0.9.7.3
 # Copyright © 2025 Dennis Westermann
 #########################################
 
@@ -24,7 +24,7 @@ cd "$PROJECT_ROOT"
 clear
 echo "╔══════════════════════════════════════════════════════════╗"
 echo "║      WHISPER TRANSCRIPTION TOOL - STARTING...           ║"
-echo "║                   Version 0.9.7.2                        ║"
+echo "║                   Version 0.9.7.3                        ║"
 echo "║           Copyright © 2025 Dennis Westermann            ║"
 echo "╚══════════════════════════════════════════════════════════╝"
 echo ""

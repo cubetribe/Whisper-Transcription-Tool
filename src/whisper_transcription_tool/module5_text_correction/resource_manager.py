@@ -121,6 +121,14 @@ class ResourceManager:
                 ModelType.LEOLM: threading.Lock()
             }
 
+            # Model caching configuration
+            self.cache_enabled = True
+            self.cache_timeout_seconds = 300  # 5 minutes
+            self.max_cached_models = 1  # Only cache one model at a time
+            self.cached_models: Dict[ModelType, Any] = {}
+            self._cache_timers: Dict[ModelType, threading.Timer] = {}
+            self._cache_lock = threading.Lock()
+
             # System resource detection
             self.gpu_acceleration = self._detect_gpu_acceleration()
             self.system_memory_gb = psutil.virtual_memory().total / (1024**3)
@@ -690,9 +698,140 @@ class ResourceManager:
             "continuous_monitoring": self._monitor_thread is not None
         }
 
+    def cache_model(self, model_type: ModelType, model_instance: Any) -> None:
+        """
+        Cache a model in memory for faster reuse.
+
+        Args:
+            model_type: Type of model to cache
+            model_instance: Model instance to cache
+        """
+        if not self.cache_enabled:
+            return
+
+        with self._cache_lock:
+            # Check memory before caching
+            memory_info = self.check_available_memory()
+            if memory_info["percent_used"] > 85:
+                logger.info(f"Memory usage too high ({memory_info['percent_used']:.1f}%), not caching {model_type.value}")
+                return
+
+            # Clear other cached models if we're at the limit
+            if len(self.cached_models) >= self.max_cached_models:
+                self.clear_model_cache()
+
+            # Cancel existing timer for this model
+            if model_type in self._cache_timers:
+                self._cache_timers[model_type].cancel()
+
+            # Cache the model
+            self.cached_models[model_type] = model_instance
+            logger.info(f"Cached {model_type.value} model for faster reuse")
+
+            # Set timer to clear cache after timeout
+            timer = threading.Timer(self.cache_timeout_seconds, self._expire_cache, args=[model_type])
+            timer.daemon = True
+            timer.start()
+            self._cache_timers[model_type] = timer
+
+    def get_cached_model(self, model_type: ModelType) -> Optional[Any]:
+        """
+        Get a cached model if available.
+
+        Args:
+            model_type: Type of model to retrieve
+
+        Returns:
+            Cached model instance or None
+        """
+        if not self.cache_enabled:
+            return None
+
+        with self._cache_lock:
+            if model_type in self.cached_models:
+                # Cancel expiration timer
+                if model_type in self._cache_timers:
+                    self._cache_timers[model_type].cancel()
+                    del self._cache_timers[model_type]
+
+                # Retrieve and remove from cache
+                model = self.cached_models.pop(model_type)
+                logger.info(f"Retrieved {model_type.value} model from cache")
+                return model
+
+        return None
+
+    def _expire_cache(self, model_type: ModelType) -> None:
+        """
+        Expire a cached model after timeout.
+
+        Args:
+            model_type: Type of model to expire
+        """
+        with self._cache_lock:
+            if model_type in self.cached_models:
+                logger.info(f"Expiring cached {model_type.value} model after timeout")
+                del self.cached_models[model_type]
+
+                # Clean up timer reference
+                if model_type in self._cache_timers:
+                    del self._cache_timers[model_type]
+
+                # Force garbage collection
+                gc.collect()
+
+    def clear_model_cache(self) -> None:
+        """Clear all cached models."""
+        with self._cache_lock:
+            # Cancel all timers
+            for timer in self._cache_timers.values():
+                timer.cancel()
+            self._cache_timers.clear()
+
+            # Clear cached models
+            cached_count = len(self.cached_models)
+            self.cached_models.clear()
+
+            if cached_count > 0:
+                logger.info(f"Cleared {cached_count} cached models")
+                gc.collect()
+
+    def set_cache_config(self, enabled: bool = True, timeout_seconds: int = 300, max_cached: int = 1) -> None:
+        """
+        Configure model caching settings.
+
+        Args:
+            enabled: Whether caching is enabled
+            timeout_seconds: How long to keep models cached
+            max_cached: Maximum number of models to cache
+        """
+        self.cache_enabled = enabled
+        self.cache_timeout_seconds = timeout_seconds
+        self.max_cached_models = max_cached
+        logger.info(f"Cache config updated: enabled={enabled}, timeout={timeout_seconds}s, max={max_cached}")
+
+    def get_cache_status(self) -> Dict[str, Any]:
+        """
+        Get current cache status.
+
+        Returns:
+            Dictionary with cache information
+        """
+        with self._cache_lock:
+            return {
+                "enabled": self.cache_enabled,
+                "timeout_seconds": self.cache_timeout_seconds,
+                "max_cached_models": self.max_cached_models,
+                "cached_models": [model_type.value for model_type in self.cached_models.keys()],
+                "cache_count": len(self.cached_models)
+            }
+
     def cleanup_all(self) -> None:
         """Release all models and clean up resources"""
         logger.info("Cleaning up all resources")
+
+        # Clear model cache first
+        self.clear_model_cache()
 
         # Release all active models
         models_to_release = list(self.active_models.keys())

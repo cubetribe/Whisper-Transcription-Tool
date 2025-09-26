@@ -80,7 +80,7 @@ class AudioChunker:
             
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to get audio duration: {e}")
-            raise DependencyError(f"FFprobe failed: {e}")
+            raise DependencyError(dependency="FFprobe")
         except (json.JSONDecodeError, KeyError, ValueError) as e:
             logger.error(f"Failed to parse duration: {e}")
             return 0
@@ -205,7 +205,7 @@ class AudioChunker:
             
         except subprocess.CalledProcessError as e:
             logger.error(f"FFmpeg failed: {e.stderr}")
-            raise DependencyError(f"Failed to split audio: {e.stderr}")
+            raise DependencyError(dependency="FFmpeg")
     
     def merge_transcriptions(self, transcriptions: List[Dict], remove_overlap: bool = True) -> str:
         """

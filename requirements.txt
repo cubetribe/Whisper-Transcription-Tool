@@ -26,7 +26,7 @@ nltk>=3.8
 transformers>=4.21.0
 
 # LLM Dependencies (for text correction with local models)
-llama-cpp-python>=0.2.0
+llama-cpp-python>=0.3.16  # Updated for better GGUF compatibility
 packaging>=20.0
 
 # Optional: Advanced features (chatbot, etc.)

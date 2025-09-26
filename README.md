@@ -2,51 +2,39 @@
 
 🎙️ **A powerful, modular Python tool for audio/video transcription using Whisper.cpp**
 
-[![Version](https://img.shields.io/badge/version-0.9.7.2-blue.svg)](https://github.com/cubetribe/WhisperCC_MacOS_Local)
+[![Version](https://img.shields.io/badge/version-0.9.7.3-blue.svg)](https://github.com/cubetribe/WhisperCC_MacOS_Local)
 [![Python](https://img.shields.io/badge/python-3.8%2B-green.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-Personal%20Use%20%7C%20Commercial%20on%20Request-orange.svg)](LICENSE)
 [![Website](https://img.shields.io/badge/website-goaiex.com-orange.svg)](https://www.goaiex.com)
 
-## 📋 Aktueller Status - Version 0.9.7.2
+## 📋 Aktueller Status - Version 0.9.7.3
 
-**🔧 BETA-VERSION MIT FUNKTIONIERENDER TEXTKORREKTUR**
+**⚠️ WARNUNG: LLM-TEXTKORREKTUR LIEFERt KEINE ÄNDERUNGEN (INVESTIGATION LAUFEND)**
 
-Diese Version enthält die vollständige LLM-Textkorrektur-Integration mit erfolgreich getesteter Fallback-Funktionalität. Das System arbeitet stabil und robust.
+Diese Version dokumentiert den letzten Debug-Stand. Die Transkription startet zwar wieder, die LeoLM-gestützte Textkorrektur erzeugt jedoch aktuell keine Änderungen (0 Korrekturen, Laufzeit < 1 s).
 
-### ✅ Getestete Features in v0.9.7.2
-- **LLM-Textkorrektur**: Vollständige Integration von LeoLM-13B für deutsche Textkorrektur
-- **Intelligentes Chunking**: Automatische Textaufteilung mit Satzboundary-Respektierung
-- **Memory Management**: Effizientes Model-Swapping zwischen Whisper und LeoLM
-- **Batch-Processing**: Parallele Verarbeitung mehrerer Transkriptionen
-- **GPU-Acceleration**: Metal-Optimierung für Apple Silicon
-- **Drei Korrekturstufen**: Light, Standard und Strict Modi
-- **WebSocket-Updates**: Echtzeit-Fortschrittsanzeige für Korrekturprozess
+### 🔍 Beobachtungen v0.9.7.3
+- Transkription läuft ohne `DependencyError` durch
+- UI zeigt neue Korrektur-Zusammenfassung (Modell, Laufzeit, Änderungscount)
+- `_correction_metadata.json` meldet `method: "llm"`, aber `corrections_made: []`
+- Logausgabe: `LLM correction completed in … with 0 adjustments`
+- Verdacht: LLM wird weiterhin nicht korrekt angesprochen oder liefert identischen Text
 
-### ✅ Verifizierter Stand (Live-Test erfolgreich)
-- ✅ **Transkription funktioniert** einwandfrei
-- ✅ **Textkorrektur läuft** (Fallback-Mode wenn LLM nicht verfügbar)
-- ✅ **File-Output korrekt** (_corrected.txt und _metadata.json)
-- ✅ **WebSocket-Events** funktionieren perfekt
-- ✅ **82% der Tasks implementiert** und funktionsfähig
-- ✅ **Kritische Bugs behoben**:
-  - ResourceManager.get_system_status() → get_status()
-  - LLMCorrector.correct_text_async() hinzugefügt
-  - Version-Anzeige korrigiert
+### ✔️ Was funktioniert
+- Whisper-Transkription (inkl. Opus-Handling)
+- UI/Progress-Anzeigen & Download-Links
+- Regelbasierter Fallback (falls LLM ausfällt)
 
-### 📊 Test-Ergebnisse
-- **Unit-Tests**: 256 Tests, 192 passed, 64 failed
-- **Integration**: Grundfunktionalität arbeitet
-- **Web-UI**: Vollständig implementiert, Korrektur-Controls vorhanden
-- **Performance**: Chunking ~1000/sec, Token-Est. ~50k/sec
-- **Memory**: ResourceManager ~50MB Overhead
+### ❗ Bekannte Probleme
+- LeoLM-Korrektur liefert keine inhaltlichen Änderungen
+- Bisherige Tests auf fehlerhafte Texte bestätigen 0 Korrekturen
+- Weitere Analyse erforderlich (Prompt/Response-Logging, Fallback-Erkennung)
 
-### 🎯 Nächste Schritte für volle LLM-Funktionalität
-1. **LeoLM Model installieren** (~7.5GB Download)
-2. **Config aktivieren**: `text_correction.enabled: true`
-3. **Model-Pfad konfigurieren** in ~/.whisper_tool.json
-4. **Minor Fixes** für Method-Naming (optional)
+### 📊 Test-Notizen
+- Keine automatische Test-Suite ausgeführt (Debug-Build)
+- Empfehlung: `_correction_metadata.json` prüfen und Logausgabe beobachten
 
-**Status: PRODUCTION-READY mit Fallback-Korrektur**
+**Status: DEBUG-BUILD – NICHT FÜR PRODUKTIVUMGEBUNGEN**
 
 ## ✨ Features
 
@@ -331,6 +319,6 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
-**Version:** 0.9.7.2 | **Status:** Beta-Ready ✅ (Getestet und funktionsfähig)
+**Version:** 0.9.7.3 | **Status:** Debug-Build ⚠️ (LLM-Korrektur ohne Wirkung)
 
 Made with ❤️ by aiEX Academy for the transcription community

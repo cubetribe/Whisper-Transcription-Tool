@@ -167,25 +167,34 @@ def get_whisper_binary_path(config: Optional[Dict] = None) -> str:
         if os.path.exists(binary_path):
             return binary_path
     
-    # Check if whisper is in PATH
-    whisper_path = shutil.which("whisper")
-    if whisper_path:
-        return whisper_path
+    # Check if whisper is in PATH (both whisper and whisper-cli names)
+    for binary_name in ("whisper", "whisper-cli"):
+        whisper_path = shutil.which(binary_name)
+        if whisper_path and os.access(whisper_path, os.X_OK):
+            return whisper_path
     
     # Check common locations
+    repo_root = Path(__file__).resolve().parents[3]
     common_locations = [
         "./whisper",
+        "./whisper-cli",
+        str(repo_root / "whisper"),
+        str(repo_root / "whisper-cli"),
+        str(repo_root / "deps" / "whisper.cpp" / "build" / "bin" / "whisper-cli"),
         "/usr/local/bin/whisper",
+        "/usr/local/bin/whisper-cli",
         "/usr/bin/whisper",
+        "/usr/bin/whisper-cli",
         str(Path.home() / "whisper.cpp" / "main"),
-        str(Path.home() / "whisper.cpp" / "whisper")
+        str(Path.home() / "whisper.cpp" / "whisper"),
+        str(Path.home() / "whisper.cpp" / "build" / "bin" / "whisper-cli")
     ]
     
     for location in common_locations:
         if os.path.exists(location) and os.access(location, os.X_OK):
             return location
     
-    raise DependencyError("Whisper.cpp binary not found. Please install Whisper.cpp or specify the binary path in the configuration.")
+    raise DependencyError(dependency="Whisper.cpp")
 
 
 def get_model_path(model_name: str, config: Optional[Dict] = None) -> str:

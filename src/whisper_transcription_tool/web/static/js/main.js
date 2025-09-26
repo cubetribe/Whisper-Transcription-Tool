@@ -167,6 +167,34 @@ function formatTimestamp(seconds) {
     ].filter(Boolean).join(':');
 }
 
+function formatCorrectionLevelLabel(level) {
+    if (!level) return 'Standard';
+    const normalized = level.toString().toLowerCase();
+    const mapping = {
+        light: 'Leicht',
+        minimal: 'Leicht',
+        standard: 'Standard',
+        strict: 'Strikt',
+        enhanced: 'Strikt',
+        none: 'Keine'
+    };
+    return mapping[normalized] || normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function formatCorrectionMethodLabel(method) {
+    if (!method) return 'LLM';
+    const normalized = method.toString().toLowerCase();
+    if (normalized === 'llm') return 'LLM';
+    if (normalized === 'rule_based') return 'Regelbasiert';
+    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function formatNumberLocalized(value) {
+    const number = Number(value);
+    if (Number.isNaN(number)) return value ?? '0';
+    return new Intl.NumberFormat('de-DE').format(number);
+}
+
 /**
  * Text Correction Manager
  */
@@ -203,7 +231,7 @@ class TextCorrectionManager {
         const modelStatus = document.getElementById('model-status');
 
         try {
-            const response = await fetch('/api/correction/status');
+            const response = await fetch('/api/correction-status');
             const data = await response.json();
 
             this.isAvailable = data.available;
@@ -398,16 +426,91 @@ class ResultDisplayManager {
 
     displayResults(data) {
         if (!this.resultContainer) return;
+        const correctionInfo = data.correction || {};
+        const correctionEnabled = data.correction_enabled ?? correctionInfo.enabled ?? false;
+        const correctionSuccess = data.correction_success ?? correctionInfo.success ?? false;
+        const correctionError = data.correction_error || correctionInfo.error;
+        const correctedText = data.corrected_text || correctionInfo.corrected_text;
+        const correctedOutputFile = data.corrected_output_file || correctionInfo.corrected_file;
 
-        if (data.correction_enabled && data.corrected_text) {
-            this.displayDualResults(data);
+        if (correctionEnabled) {
+            const modelInfo = correctionInfo.model_info || {};
+            const enrichedData = {
+                ...data,
+                corrected_text: correctedText,
+                corrected_output_file: correctedOutputFile,
+                correction_level: data.correction_level || correctionInfo.correction_level,
+                correction_method: data.correction_method || correctionInfo.method,
+                correction_changes: data.correction_changes ?? (Array.isArray(correctionInfo.corrections_made) ? correctionInfo.corrections_made.length : correctionInfo.corrections_made || 0),
+                correction_improvement_score: data.correction_improvement_score ?? correctionInfo.improvement_score,
+                correction_metadata_file: data.correction_metadata_file || correctionInfo.metadata_file,
+                correction_time: data.correction_time || correctionInfo.processing_time,
+                correction_time_seconds: data.correction_time_seconds ?? correctionInfo.processing_time_seconds,
+                correction_model: data.correction_model || correctionInfo.model || modelInfo.model_name || (modelInfo.model_path ? modelInfo.model_path.split('/').pop() : undefined),
+                correction_model_path: data.correction_model_path || modelInfo.model_path,
+                correction_llm_level: data.correction_llm_level || correctionInfo.llm_level
+            };
+
+            if (correctionSuccess && correctedText) {
+                this.displayDualResults(enrichedData);
+                showNotification(
+                    `Textkorrektur abgeschlossen (${formatCorrectionLevelLabel(enrichedData.correction_level || 'standard')})`,
+                    'success',
+                    6000
+                );
+            } else if (correctionSuccess && !correctedText) {
+                // No text difference – inform user but still show single result
+                this.displaySingleResult(data);
+                this.injectCorrectionMessage('info', 'Textkorrektur abgeschlossen – keine Änderungen erforderlich.');
+                showNotification('Textkorrektur abgeschlossen – keine Änderungen erforderlich.', 'info', 5000);
+            } else {
+                this.displaySingleResult(data);
+                const errorMessage = correctionError || 'Textkorrektur konnte nicht durchgeführt werden.';
+                this.injectCorrectionMessage('warning', errorMessage);
+                showNotification(`Textkorrektur übersprungen: ${errorMessage}`, 'warning', 6000);
+            }
         } else {
             this.displaySingleResult(data);
         }
     }
 
     displayDualResults(data) {
+        const levelLabel = formatCorrectionLevelLabel(data.correction_level || 'standard');
+        const methodLabel = formatCorrectionMethodLabel(data.correction_method || 'llm');
+        const changesLabel = formatNumberLocalized(data.correction_changes ?? 0);
+        const improvement = data.correction_improvement_score;
+        const improvementLabel = typeof improvement === 'number' && !Number.isNaN(improvement)
+            ? `${improvement.toFixed(2)}%`
+            : null;
+        const durationLabel = data.correction_time
+            || (typeof data.correction_time_seconds === 'number' ? `${data.correction_time_seconds.toFixed(2)} s` : null);
+        const modelLabel = data.correction_model
+            || (data.correction_model_path ? data.correction_model_path.split('/').pop() : null);
+        const llmLevelLabel = data.correction_llm_level
+            ? formatCorrectionLevelLabel(data.correction_llm_level)
+            : null;
+
         const resultHTML = `
+            <div class="correction-summary" style="border: 1px solid #c7e8c1; background: #f5fff4; padding: 16px; border-radius: 12px; margin-bottom: 18px; display: flex; gap: 16px; align-items: center;">
+                <div class="summary-icon" style="font-size: 26px; color: #2f9e44;">
+                    <i class="fas fa-spell-check"></i>
+                </div>
+                <div class="summary-content" style="flex: 1;">
+                    <div style="font-weight: 600; font-size: 16px;">Textkorrektur abgeschlossen</div>
+                    <div style="font-size: 14px; color: #2f9e44;">
+                        ${levelLabel}
+                        ${llmLevelLabel && llmLevelLabel !== levelLabel ? ` · LLM-Level: ${llmLevelLabel}` : ''}
+                        · ${methodLabel}
+                        · ${changesLabel} Änderungen
+                        ${improvementLabel ? ` · ${improvementLabel} Verbesserung` : ''}
+                        ${durationLabel ? ` · ${durationLabel}` : ''}
+                        ${modelLabel ? ` · Modell: ${modelLabel}` : ''}
+                    </div>
+                </div>
+                ${data.correction_metadata_file ? `<button class="btn secondary" onclick="downloadFile('${data.correction_metadata_file}')">
+                        <i class="fas fa-file-alt"></i> Metadaten
+                    </button>` : ''}
+            </div>
             <div class="result-versions">
                 <div class="result-version">
                     <div class="version-header">
@@ -453,27 +556,63 @@ class ResultDisplayManager {
                     <div class="version-metadata">
                         <div class="metadata-item">
                             <span>Korrektur-Zeit:</span>
-                            <span>${data.correction_time || 'N/A'}</span>
+                            <span>${durationLabel || 'N/A'}</span>
+                        </div>
+                        <div class="metadata-item">
+                            <span>Modell:</span>
+                            <span>${modelLabel || 'Unbekannt'}</span>
                         </div>
                         <div class="metadata-item">
                             <span>Korrekturstufe:</span>
-                            <span>${data.correction_level || 'Standard'}</span>
+                            <span>${levelLabel}</span>
+                        </div>
+                        <div class="metadata-item">
+                            <span>LLM-Level:</span>
+                            <span>${llmLevelLabel || 'N/A'}</span>
                         </div>
                         <div class="metadata-item">
                             <span>Änderungen:</span>
-                            <span>${data.correction_changes || '0'} Korrekturen</span>
+                            <span>${changesLabel} Korrekturen</span>
                         </div>
                     </div>
-                    <div class="version-actions">
-                        <button class="btn primary" onclick="downloadFile('${data.corrected_output_file}')">
-                            <i class="fas fa-download"></i> Download
-                        </button>
-                    </div>
+                        <div class="version-actions">
+                            <button class="btn primary" onclick="downloadFile('${data.corrected_output_file}')">
+                                <i class="fas fa-download"></i> Download
+                            </button>
+                        </div>
                 </div>
             </div>
         `;
 
         this.resultContainer.innerHTML = resultHTML;
+    }
+
+    injectCorrectionMessage(type, message) {
+        if (!this.resultContainer) return;
+        const existing = this.resultContainer.querySelector('.correction-message');
+        if (existing) {
+            existing.remove();
+        }
+
+        const icon = type === 'warning' ? 'exclamation-triangle' : type === 'info' ? 'info-circle' : 'check-circle';
+        const color = type === 'warning' ? '#b35c00' : '#1e66f5';
+
+        const messageHtml = document.createElement('div');
+        messageHtml.className = 'correction-message';
+        messageHtml.style.border = `1px solid ${color}`;
+        messageHtml.style.background = type === 'warning' ? '#fff4e6' : '#eef4ff';
+        messageHtml.style.padding = '12px 16px';
+        messageHtml.style.borderRadius = '10px';
+        messageHtml.style.marginBottom = '16px';
+        messageHtml.style.display = 'flex';
+        messageHtml.style.alignItems = 'center';
+        messageHtml.style.gap = '12px';
+        messageHtml.innerHTML = `
+            <span style="color:${color}; font-size: 20px;"><i class="fas fa-${icon}"></i></span>
+            <span style="color:${color};">${message}</span>
+        `;
+
+        this.resultContainer.prepend(messageHtml);
     }
 
     displaySingleResult(data) {

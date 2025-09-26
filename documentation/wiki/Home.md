@@ -13,10 +13,10 @@ Willkommen im zentralen Wissenshub für das Whisper Transcription Tool. Die Anwe
 - **[Release-Management](Release-Management.md)** – Versionierung, Changelog, Veröffentlichungsschritte.
 - **[Contribution Guide](Contribution-Guidelines.md)** – Arbeitsabläufe, Branch-Policy, Code-Standards.
 
-## Aktueller Status (Stand v0.9.7.2)
-- **Transkription:** Whisper.cpp (large-v3-turbo) mit stabilen Apple-Silicon-Builds.
-- **Textkorrektur:** Modul5 (LeoLM 13B, Q4_K_M) bietet optionale Post-Processing-Korrektur.
-- **Frontend:** Bootstrap-basiertes UI mit Echtzeit-WebSockets und zweiphasiger Fortschrittsanzeige.
+## Aktueller Status (Stand v0.9.7.3)
+- **Transkription:** Whisper.cpp (large-v3-turbo) lauffähig, DependencyError-Hotfix aktiv.
+- **Textkorrektur:** Modul 5 (LeoLM) liefert aktuell 0 Änderungen → Debugging offen.
+- **Frontend:** Zeigt Modell, Laufzeit, Änderungscount zur Diagnose.
 - **macOS-App:** Xcode-Projekt und CI-Workflows für notarized Builds.
 - **Testabdeckung:** Unit-, Integrations- und End-to-End-Tests (FastAPI, CLI, UI, Resource Manager).
 

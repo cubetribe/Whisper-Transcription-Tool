@@ -136,6 +136,72 @@ Corrected text:"""
         if not LLAMA_CPP_AVAILABLE:
             raise ImportError("llama-cpp-python not available. Install with: pip install llama-cpp-python")
 
+    async def load_model_async(self, progress_callback=None) -> bool:
+        """
+        Asynchronously load the LeoLM model with progress updates.
+
+        Args:
+            progress_callback: Optional callback function(progress: float, status: str)
+
+        Returns:
+            True if model loaded successfully, False otherwise.
+        """
+        import asyncio
+
+        # Run the synchronous load in a thread pool
+        loop = asyncio.get_event_loop()
+
+        def load_with_progress():
+            """Wrapper to provide progress updates during loading."""
+            if progress_callback:
+                progress_callback(0.0, "Initializing model loading...")
+
+            # Check model file
+            if progress_callback:
+                progress_callback(0.1, "Checking model file...")
+
+            if not self.model_path.exists():
+                if progress_callback:
+                    progress_callback(0.0, f"Error: Model file not found at {self.model_path}")
+                return False
+
+            if progress_callback:
+                progress_callback(0.2, f"Model file found ({self.model_path.stat().st_size / (1024**3):.1f} GB)")
+
+            # Validate file format
+            if progress_callback:
+                progress_callback(0.3, "Validating GGUF format...")
+
+            try:
+                with open(self.model_path, 'rb') as f:
+                    header = f.read(4)
+                    if header != b'GGUF':
+                        if progress_callback:
+                            progress_callback(0.0, "Error: Invalid GGUF format")
+                        return False
+            except Exception as e:
+                if progress_callback:
+                    progress_callback(0.0, f"Error reading file: {e}")
+                return False
+
+            if progress_callback:
+                progress_callback(0.4, "Loading model into memory...")
+
+            # Actual model loading
+            result = self.load_model()
+
+            if result:
+                if progress_callback:
+                    progress_callback(1.0, "Model loaded successfully!")
+            else:
+                if progress_callback:
+                    progress_callback(0.0, "Model loading failed")
+
+            return result
+
+        # Execute in thread pool
+        return await loop.run_in_executor(None, load_with_progress)
+
     def load_model(self) -> bool:
         """
         Load the LeoLM model with Metal optimization.
@@ -353,8 +419,16 @@ Corrected text:"""
 
             return corrected_text
 
+        except KeyError as e:
+            logger.error(f"Invalid model response structure: {e}")
+            logger.error(f"Response keys: {response.keys() if 'response' in locals() else 'No response'}")
+            raise RuntimeError(f"Model response parsing failed: {e}")
         except Exception as e:
-            logger.error(f"Error during text generation: {e}")
+            logger.error(f"Error during text generation: {type(e).__name__}: {e}")
+            if "out of memory" in str(e).lower():
+                logger.error("Out of memory error - consider reducing context length or using smaller model")
+            elif "tensor" in str(e).lower():
+                logger.error("Tensor error - model may be incompatible with current setup")
             raise
 
     def correct_text(self, text: str, correction_level: str = "basic", language: str = "de") -> str:
@@ -373,8 +447,14 @@ Corrected text:"""
             return text
 
         if not self.is_model_loaded():
+            logger.info("Model not loaded, attempting to load...")
             if not self.load_model():
-                raise RuntimeError("Failed to load model")
+                logger.error("Failed to load LLM model for text correction")
+                logger.error(f"Model path: {self.model_path}")
+                logger.error(f"Model exists: {self.model_path.exists()}")
+                if self.model_path.exists():
+                    logger.error(f"Model size: {self.model_path.stat().st_size / (1024**3):.2f} GB")
+                raise RuntimeError("Failed to load model - check logs for details")
 
         # Validate correction level
         if correction_level not in self.CORRECTION_PROMPTS:

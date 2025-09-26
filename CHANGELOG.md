@@ -2,6 +2,82 @@
 
 All notable changes to the Whisper Transcription Tool will be documented in this file.
 
+## [0.9.7.3] - 2025-09-25 - DEBUG SESSION
+
+### 🔧 Fehlerbehebungs-Versuch für LLM-Textkorrektur
+
+#### Durchgeführte Änderungen:
+
+##### 1. LLM-Modell Download und Konfiguration
+- **Neues Modell heruntergeladen**: `em_german_leo_mistral.Q4_K_M.gguf` (4.1GB)
+  - Pfad: `/Users/denniswestermann/.lmstudio/models/mradermacher/LeoLM-hesseianai-13b-chat-GGUF/em_german_leo_mistral.Q4_K_M.gguf`
+  - Alternative zu LeoLM-13B wegen Tensor-Dimension-Inkompatibilität
+- **Konfiguration aktualisiert**: `~/.whisper_tool.json` mit neuem Modellpfad
+
+##### 2. API-Endpunkt Fixes
+- **Fixed**: JavaScript URL-Mismatch in `/src/whisper_transcription_tool/web/static/js/main.js`
+  - Alt: `/api/correction/status`
+  - Neu: `/api/correction-status`
+  - Problem: Frontend konnte Korrektur-Status nicht abrufen
+
+##### 3. Exception-Handling Korrekturen
+- **Fixed**: `DependencyError` Konstruktor-Aufrufe in mehreren Dateien:
+  - `/src/whisper_transcription_tool/module1_transcribe/__init__.py`:
+    - Alt: `raise DependencyError("Whisper.cpp binary not found...")`
+    - Neu: `raise DependencyError(dependency="Whisper.cpp")`
+  - `/src/whisper_transcription_tool/module2_extract/__init__.py`:
+    - Alt: `raise DependencyError("FFmpeg not found...")`
+    - Neu: `raise DependencyError(dependency="FFmpeg")`
+  - `/src/whisper_transcription_tool/core/audio_chunker.py`:
+    - Alt: `raise DependencyError(f"FFprobe failed: {e}")`
+    - Neu: `raise DependencyError(dependency="FFprobe")`
+    - Alt: `raise DependencyError(f"Failed to split audio: {e.stderr}")`
+    - Neu: `raise DependencyError(dependency="FFmpeg")`
+
+##### 4. Diagnose-Verbesserungen für Korrektur
+- UI zeigt jetzt Modellname, Laufzeit und Änderungscount im Ergebnisbereich
+- `_correction_metadata.json` speichert `processing_time_seconds`, `model_info`, `llm_level`
+- Logging ergänzt: `LLM correction completed in … with N adjustments`
+- Diff-Analyse (`_analyze_corrections`) versucht Änderungen zu erkennen, falls LLM-Response identisch wirkt
+
+##### 4. Error Recovery Robustheit
+- **Fixed**: Sicherer Zugriff auf `error.details` in `/src/whisper_transcription_tool/core/error_recovery.py`
+  - Alt: `error.details.get(...)`
+  - Neu: `getattr(error, 'details', {}).get(...)`
+  - Verhindert AttributeError bei älteren Exception-Instanzen
+
+#### ⚠️ Bekannte offene Probleme:
+
+##### Hauptproblem: LLM-Korrektur ohne Wirkung
+- **Status**: Transkription läuft; Korrektur meldet 0 Änderungen
+- **Symptome**:
+  - UI: `0` Korrekturen, Laufzeit < 1 s
+  - Metadaten: `corrections_made: []`, `processing_time_seconds < 1`
+  - Log: `LLM correction completed in … with 0 adjustments`
+- **Verdacht**: LeoLM-Antwort identisch mit Original (Prompt/Response prüfen) oder Fallback aktiv
+
+##### Nachwirkungen des ursprünglichen Exceptions-Fehlers
+- `DependencyError.details` AttributeError behoben, aber weitere Alt-Aufrufe prüfen
+- Sicherstellen, dass keine gecachten Modulversionen ohne Fix aktiv sind
+
+##### Debugging-Informationen:
+- Server läuft auf Ports: 8090, 8091, 8092, 8093 (mehrere Instanzen)
+- LLM-Model wird korrekt erkannt und Status meldet "ready"
+- API-Endpunkt `/api/correction-status` funktioniert und meldet:
+  ```json
+  {
+    "llm_available": true,
+    "model_status": "model_valid",
+    "available_ram_gb": 25.17
+  }
+  ```
+
+### 📝 Nächste Schritte:
+1. Vollständige Code-Suche nach allen `.details` Zugriffen
+2. Überprüfung aller Exception-Instantiierungen
+3. Stack-Trace Analyse des genauen Fehlerorts
+4. Möglicherweise kompletter Neustart aller Server-Prozesse nötig
+
 ## [0.9.7.2] - 2025-09-25 - BETA
 
 ### ✅ Live-Test erfolgreich durchgeführt

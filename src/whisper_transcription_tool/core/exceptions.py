@@ -46,8 +46,10 @@ class WhisperToolError(Exception):
         self.message = message
         self.category = category
         self.recovery_action = recovery_action
-        self.user_message = user_message or self._generate_user_message()
+        # Details are needed by many _generate_user_message implementations
+        # so populate them before creating the default user message.
         self.details = details or {}
+        self.user_message = user_message or self._generate_user_message()
 
     def _generate_user_message(self) -> str:
         """Generate a user-friendly error message."""

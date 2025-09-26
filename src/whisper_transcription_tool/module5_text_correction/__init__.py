@@ -27,8 +27,10 @@ import asyncio
 import json
 import os
 import logging
+import time
+import difflib
 from pathlib import Path
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional, Union, Tuple, List
 from datetime import datetime
 
 from ..core.config import load_config
@@ -59,6 +61,40 @@ try:
 except ImportError as e:
     logger.warning(f"ResourceManager not available: {e}")
     ResourceManager = None
+
+
+def _analyze_corrections(original: str, corrected: str) -> Tuple[List[str], float]:
+    """Create a simple diff-based summary between original and corrected text."""
+    if not original or original == corrected:
+        return [], 0.0
+
+    original_words = original.split()
+    corrected_words = corrected.split()
+    matcher = difflib.SequenceMatcher(None, original_words, corrected_words)
+
+    corrections: List[str] = []
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "replace":
+            before = " ".join(original_words[i1:i2]).strip()
+            after = " ".join(corrected_words[j1:j2]).strip()
+            if before or after:
+                corrections.append(f"Ersetzt: '{before}' → '{after}'")
+        elif tag == "delete":
+            removed = " ".join(original_words[i1:i2]).strip()
+            if removed:
+                corrections.append(f"Entfernt: '{removed}'")
+        elif tag == "insert":
+            added = " ".join(corrected_words[j1:j2]).strip()
+            if added:
+                corrections.append(f"Hinzugefügt: '{added}'")
+
+    unique_corrections: List[str] = []
+    for entry in corrections:
+        if entry and entry not in unique_corrections:
+            unique_corrections.append(entry)
+
+    improvement = (len(unique_corrections) / max(len(original_words), 1)) * 100
+    return unique_corrections, round(improvement, 2)
 
 # Orchestration functions for API integration
 async def correct_transcription(
@@ -221,18 +257,46 @@ async def correct_transcription(
         error_msg = f"Text correction failed: {str(e)}"
         logger.error(error_msg)
 
-        # Publish error event
+        # Determine error category and recommendation
+        error_category = "unknown"
+        error_recommendation = "Please check the logs for more details."
+
+        if "model" in str(e).lower() and "not found" in str(e).lower():
+            error_category = "model_missing"
+            error_recommendation = "Download the LeoLM model to enable AI-powered text correction."
+        elif "tensor" in str(e).lower() or "dimension" in str(e).lower():
+            error_category = "model_incompatible"
+            error_recommendation = "The model file appears incompatible. Try a different quantization or update llama-cpp-python."
+        elif "memory" in str(e).lower() or "ram" in str(e).lower():
+            error_category = "insufficient_memory"
+            error_recommendation = "Not enough memory available. Close other applications or use a smaller model."
+        elif "file not found" in str(e).lower():
+            error_category = "file_not_found"
+            error_recommendation = f"The transcription file was not found: {transcription_file}"
+        elif "load model" in str(e).lower():
+            error_category = "model_load_failed"
+            error_recommendation = "Failed to load the LLM model. Check model file integrity and system resources."
+
+        # Publish detailed error event
         publish(EventType.CUSTOM, {
             "type": "correction_error",
             "file": str(transcription_file),
             "error": error_msg,
+            "error_category": error_category,
+            "error_recommendation": error_recommendation,
+            "error_type": type(e).__name__,
             "correction_id": correction_id,
-            "user_id": user_id
+            "user_id": user_id,
+            "correction_level": correction_level,
+            "fallback_available": True  # Rule-based correction is always available
         })
 
         return {
             "success": False,
             "error": error_msg,
+            "error_category": error_category,
+            "recommendation": error_recommendation,
+            "fallback_available": True,
             "original_file": str(transcription_file)
         }
 
@@ -264,11 +328,42 @@ def correct_transcription_sync(
 
 def check_correction_availability() -> Dict[str, Any]:
     """
-    Check if text correction is available and return status information.
+    Check if text correction is available and return detailed status information.
     """
     try:
         # Check if LLM corrector is available
         llm_available = LLMCorrector is not None
+        llm_error = None
+        model_status = "not_checked"
+
+        # Try to validate LLM model if available
+        if llm_available:
+            try:
+                # Try to check if model file exists
+                from .llm_corrector import LLMCorrector as LLMCorrectorClass
+                model_path = LLMCorrectorClass.DEFAULT_MODEL_PATH
+
+                if os.path.exists(model_path):
+                    model_status = "model_found"
+                    # Try to validate model format
+                    try:
+                        # Quick validation - check if it's a valid GGUF file
+                        with open(model_path, 'rb') as f:
+                            header = f.read(4)
+                            if header == b'GGUF':
+                                model_status = "model_valid"
+                            else:
+                                model_status = "model_invalid"
+                                llm_error = "Model file is not in valid GGUF format"
+                    except Exception as e:
+                        model_status = "model_unreadable"
+                        llm_error = f"Cannot read model file: {str(e)}"
+                else:
+                    model_status = "model_missing"
+                    llm_error = f"Model file not found at {model_path}"
+            except Exception as e:
+                model_status = "check_failed"
+                llm_error = f"Failed to check model: {str(e)}"
 
         # Check system resources if ResourceManager is available
         if ResourceManager is not None:
@@ -291,29 +386,52 @@ def check_correction_availability() -> Dict[str, Any]:
             can_run = available_ram >= 2.0
             status = {"can_run_correction": can_run}
 
+        # Determine overall status and recommendation
+        if not llm_available:
+            overall_status = "llm_unavailable"
+            recommendation = "LLM module not available. Using fallback rule-based correction."
+        elif model_status == "model_missing":
+            overall_status = "model_missing"
+            recommendation = "LLM model not found. Please download LeoLM model to enable AI correction."
+        elif model_status == "model_invalid":
+            overall_status = "model_incompatible"
+            recommendation = "Model file format issue. Try downloading a different quantization of LeoLM."
+        elif not can_run:
+            overall_status = "insufficient_memory"
+            recommendation = f"Not enough memory. Need at least 4GB free RAM, have {available_ram:.1f}GB."
+        else:
+            overall_status = "ready"
+            recommendation = "Text correction ready with LLM support."
+
         return {
-            "available": llm_available and can_run,
+            "available": llm_available and can_run and model_status == "model_valid",
             "fallback_available": True,  # Rule-based correction always available
             "llm_available": llm_available,
+            "llm_error": llm_error,
+            "model_status": model_status,
             "resource_manager_available": ResourceManager is not None,
-            "status": "ready" if (llm_available and can_run) else "limited",
+            "status": overall_status,
+            "recommendation": recommendation,
             "available_ram_gb": available_ram,
             "min_required_ram_gb": 4.0,
             "recommended_ram_gb": 8.0,
             "models_available": {
                 "minimal": available_ram >= 2.0,
-                "standard": available_ram >= 4.0 and llm_available,
-                "enhanced": available_ram >= 8.0 and llm_available
+                "standard": available_ram >= 4.0 and llm_available and model_status == "model_valid",
+                "enhanced": available_ram >= 8.0 and llm_available and model_status == "model_valid"
             },
-            "system_status": status
+            "system_status": status,
+            "fallback_active": not (llm_available and can_run and model_status == "model_valid")
         }
     except Exception as e:
         logger.error(f"Error checking correction availability: {e}")
         return {
             "available": False,
             "fallback_available": True,  # Rule-based correction should always work
+            "fallback_active": True,
             "error": str(e),
-            "status": "error"
+            "status": "error",
+            "recommendation": f"Error checking correction status: {str(e)}"
         }
 
 async def _llm_correction(
@@ -337,27 +455,64 @@ async def _llm_correction(
         })
 
         # Perform correction
+        start_time = time.time()
+        llm_level_map = {
+            "minimal": "basic",
+            "light": "basic",
+            "standard": "advanced",
+            "strict": "formal",
+            "enhanced": "formal"
+        }
+        llm_level = llm_level_map.get(correction_level.lower(), "advanced") if isinstance(correction_level, str) else "advanced"
+
         result = await corrector.correct_text_async(
             text=text,
-            correction_level=correction_level,
-            dialect_normalization=dialect_normalization,
-            progress_callback=lambda p, s: publish(EventType.PROGRESS_UPDATE, {
-                "task": "correction",
-                "status": s,
-                "progress": 30 + int(p * 0.5),  # 30-80% progress
-                "correction_id": correction_id,
-                "user_id": user_id,
-                "phase": "processing"
-            })
+            correction_level=llm_level,
+            language="de"
+        )
+        duration = time.time() - start_time
+
+        if isinstance(result, dict):
+            corrected_text = result.get("corrected_text", text)
+            corrections_made = result.get("corrections", [])
+            improvement_score = result.get("improvement_score", 0)
+            metadata = result.get("metadata", {})
+        else:
+            corrected_text = result if isinstance(result, str) else text
+            corrections_made = []
+            improvement_score = 0.0
+            metadata = {}
+
+        if not corrections_made:
+            corrections_made, improvement_score = _analyze_corrections(text, corrected_text)
+
+        model_info = corrector.get_model_info()
+        if model_info.get("model_path"):
+            model_info["model_name"] = Path(model_info["model_path"]).name
+
+        metadata = {
+            **metadata,
+            "processing_time_seconds": duration,
+            "model_info": model_info,
+            "correction_level": correction_level,
+            "llm_level": llm_level,
+            "dialect_normalization": dialect_normalization
+        }
+
+        logger.info(
+            "LLM correction completed in %.2fs with %d adjustments (model=%s)",
+            duration,
+            len(corrections_made),
+            model_info.get("model_name") or model_info.get("model_path")
         )
 
         return {
             "success": True,
-            "corrected_text": result.get("corrected_text", text),
-            "corrections_made": result.get("corrections", []),
-            "improvement_score": result.get("improvement_score", 0),
+            "corrected_text": corrected_text or text,
+            "corrections_made": corrections_made,
+            "improvement_score": improvement_score,
             "method": "llm",
-            "metadata": result.get("metadata", {})
+            "metadata": metadata
         }
 
     except Exception as e:
@@ -373,7 +528,7 @@ async def _fallback_correction(
     user_id: Optional[str]
 ) -> Dict[str, Any]:
     """Fallback rule-based correction."""
-
+    start_time = time.time()
     # Progress update
     publish(EventType.PROGRESS_UPDATE, {
         "task": "correction",
@@ -432,7 +587,15 @@ async def _fallback_correction(
                 corrections_made.append(f"Dialect correction: '{dialect}' -> '{standard}'")
 
     # Calculate improvement score
-    improvement_score = len(corrections_made) / max(len(text), 1) * 100
+    improvement_score = len(corrections_made) / max(len(text.split()), 1) * 100
+
+    duration = time.time() - start_time
+
+    logger.info(
+        "Fallback rule-based correction completed in %.2fs with %d adjustments",
+        duration,
+        len(corrections_made)
+    )
 
     return {
         "success": True,
@@ -444,7 +607,13 @@ async def _fallback_correction(
             "original_length": len(text),
             "corrected_length": len(corrected_text),
             "correction_level": correction_level,
-            "dialect_normalization": dialect_normalization
+            "dialect_normalization": dialect_normalization,
+            "processing_time_seconds": duration,
+            "model_info": {
+                "model_path": None,
+                "model_loaded": False,
+                "model_name": "rule_based"
+            }
         }
     }
 

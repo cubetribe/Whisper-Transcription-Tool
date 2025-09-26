@@ -38,6 +38,32 @@ from pydantic import BaseModel, Field
 # Create FastAPI app
 app = FastAPI(title="Whisper Transcription Tool")
 
+
+def format_duration(seconds: Optional[float]) -> Optional[str]:
+    """Convert seconds into a human readable string."""
+    if seconds is None:
+        return None
+    try:
+        seconds = float(seconds)
+    except (TypeError, ValueError):
+        return None
+
+    if seconds < 0:
+        return None
+    if seconds < 0.001:
+        return "<1 ms"
+    if seconds < 1:
+        return f"{seconds * 1000:.0f} ms"
+    if seconds < 60:
+        return f"{seconds:.2f} s"
+
+    minutes, rem_seconds = divmod(seconds, 60)
+    if minutes < 60:
+        return f"{int(minutes)}m {rem_seconds:.1f}s"
+
+    hours, rem_minutes = divmod(minutes, 60)
+    return f"{int(hours)}h {int(rem_minutes)}m {rem_seconds:.1f}s"
+
 # Phone API-Routes registrieren
 app.include_router(phone_router)
 
@@ -493,12 +519,31 @@ async def transcribe_audio_api(
                     logger.info(f"Text correction completed successfully")
                     # Update result with corrected information
                     result_dict = result.to_dict()
+                    correction_payload = correction_result.get("correction_result", {})
+                    corrections_made = correction_payload.get("corrections_made", [])
+                    if isinstance(corrections_made, list):
+                        corrections_count = len(corrections_made)
+                    else:
+                        # Fallback: some implementations may return an int directly
+                        corrections_count = corrections_made or 0
+                    processing_seconds = correction_payload.get("processing_time_seconds")
+                    model_info = correction_payload.get("model_info", {}) or {}
+                    model_path = model_info.get("model_path")
+                    model_name = model_info.get("model_name") or (Path(model_path).name if model_path else None)
+                    llm_level = correction_payload.get("llm_level")
+                    formatted_duration = format_duration(processing_seconds)
                     result_dict["correction"] = {
                         "enabled": True,
                         "success": True,
                         "corrected_file": correction_result.get("corrected_file"),
                         "metadata_file": correction_result.get("metadata_file"),
-                        "improvement_score": correction_result.get("correction_result", {}).get("improvement_score", 0)
+                        "improvement_score": correction_payload.get("improvement_score", 0),
+                        "method": correction_payload.get("method"),
+                        "corrections_made": corrections_made,
+                        "correction_level": correction_level,
+                        "processing_time_seconds": processing_seconds,
+                        "model_info": model_info,
+                        "llm_level": llm_level
                     }
 
                     # If correction was successful, update the main result with corrected text for display
@@ -512,6 +557,23 @@ async def transcribe_audio_api(
                         except Exception as e:
                             logger.error(f"Error reading corrected file: {e}")
 
+                    # Provide top-level convenience fields for the frontend
+                    result_dict.update({
+                        "correction_enabled": True,
+                        "correction_success": True,
+                        "correction_level": correction_level,
+                        "correction_method": correction_payload.get("method"),
+                        "correction_changes": corrections_count,
+                        "correction_improvement_score": correction_payload.get("improvement_score"),
+                        "correction_metadata_file": correction_result.get("metadata_file"),
+                        "corrected_output_file": correction_result.get("corrected_file"),
+                        "correction_time_seconds": processing_seconds,
+                        "correction_time": formatted_duration,
+                        "correction_model": model_name,
+                        "correction_model_path": model_path,
+                        "correction_llm_level": llm_level
+                    })
+
                     return JSONResponse(result_dict)
                 else:
                     logger.error(f"Text correction failed: {correction_result.get('error', 'Unknown error')}")
@@ -522,6 +584,11 @@ async def transcribe_audio_api(
                         "success": False,
                         "error": correction_result.get("error", "Unknown correction error")
                     }
+                    result_dict.update({
+                        "correction_enabled": True,
+                        "correction_success": False,
+                        "correction_error": correction_result.get("error", "Unknown correction error")
+                    })
                     return JSONResponse(result_dict)
 
             except Exception as e:
@@ -533,6 +600,11 @@ async def transcribe_audio_api(
                     "success": False,
                     "error": f"Correction failed: {str(e)}"
                 }
+                result_dict.update({
+                    "correction_enabled": True,
+                    "correction_success": False,
+                    "correction_error": f"Correction failed: {str(e)}"
+                })
                 return JSONResponse(result_dict)
         else:
             # No correction requested or transcription failed
@@ -543,8 +615,14 @@ async def transcribe_audio_api(
                     "success": False,
                     "error": "Transcription failed, correction skipped" if not result.success else "Correction not available"
                 }
+                result_dict.update({
+                    "correction_enabled": True,
+                    "correction_success": False,
+                    "correction_error": result_dict["correction"]["error"]
+                })
             else:
                 result_dict["correction"] = {"enabled": False}
+                result_dict["correction_enabled"] = False
             return JSONResponse(result_dict)
 
         # Fallback return (should not reach here)
@@ -556,6 +634,137 @@ async def transcribe_audio_api(
             {"success": False, "error": str(e)},
             status_code=500
         )
+
+
+@app.get("/api/models/validate")
+async def validate_model_api(model_path: str = None):
+    """
+    API endpoint to validate a specific model file.
+
+    Args:
+        model_path: Path to the model file to validate (optional)
+
+    Returns:
+        JSON response with validation results
+    """
+    try:
+        import os
+        from pathlib import Path
+
+        # Use provided path or default
+        if model_path:
+            path = Path(model_path)
+        else:
+            # Use default LeoLM path
+            path = Path("/Users/denniswestermann/.lmstudio/models/mradermacher/LeoLM-hesseianai-13b-chat-GGUF/LeoLM-hesseianai-13b-chat.Q4_K_M.gguf")
+
+        validation_result = {
+            "path": str(path),
+            "exists": path.exists(),
+            "is_file": path.is_file() if path.exists() else False,
+            "readable": os.access(str(path), os.R_OK) if path.exists() else False,
+            "size_gb": path.stat().st_size / (1024**3) if path.exists() and path.is_file() else 0,
+            "format_valid": False,
+            "format_details": None,
+            "recommendation": None
+        }
+
+        # Check file format if it exists
+        if validation_result["exists"] and validation_result["is_file"]:
+            try:
+                with open(path, 'rb') as f:
+                    header = f.read(4)
+                    if header == b'GGUF':
+                        validation_result["format_valid"] = True
+                        validation_result["format_details"] = "Valid GGUF format detected"
+                        validation_result["recommendation"] = "Model file appears valid for use"
+                    else:
+                        validation_result["format_details"] = f"Invalid header: {header.hex()}"
+                        validation_result["recommendation"] = "File is not in GGUF format. Download a GGUF model."
+            except Exception as e:
+                validation_result["format_details"] = f"Could not read file: {str(e)}"
+                validation_result["recommendation"] = "Unable to validate file format"
+        else:
+            validation_result["recommendation"] = "Model file not found. Please download the LeoLM model."
+
+        return JSONResponse({
+            "success": True,
+            **validation_result
+        })
+
+    except Exception as e:
+        logger.error(f"Error validating model: {e}")
+        return JSONResponse({
+            "success": False,
+            "error": str(e)
+        }, status_code=500)
+
+
+@app.get("/api/models/available")
+async def list_available_models_api():
+    """
+    API endpoint to list available models in common directories.
+
+    Returns:
+        JSON response with list of found models
+    """
+    try:
+        from pathlib import Path
+
+        # Common model directories to search
+        search_paths = [
+            Path.home() / ".lmstudio" / "models",
+            Path.home() / "Models",
+            Path("/Users/denniswestermann/Desktop/Coding Projekte/whisper_clean/models"),
+            Path("/opt/models"),
+            Path("/usr/local/models")
+        ]
+
+        found_models = []
+
+        for base_path in search_paths:
+            if not base_path.exists():
+                continue
+
+            # Search for GGUF files
+            for gguf_file in base_path.rglob("*.gguf"):
+                try:
+                    model_info = {
+                        "path": str(gguf_file),
+                        "name": gguf_file.name,
+                        "size_gb": gguf_file.stat().st_size / (1024**3),
+                        "parent_dir": gguf_file.parent.name,
+                        "quantization": None
+                    }
+
+                    # Try to extract quantization from filename
+                    name_lower = gguf_file.name.lower()
+                    for quant in ["q2_k", "q3_k", "q4_k", "q4_k_m", "q5_k", "q5_k_m", "q6_k", "q8_0"]:
+                        if quant in name_lower:
+                            model_info["quantization"] = quant.upper()
+                            break
+
+                    found_models.append(model_info)
+                except Exception as e:
+                    logger.warning(f"Error processing model file {gguf_file}: {e}")
+
+        # Sort by size
+        found_models.sort(key=lambda x: x["size_gb"])
+
+        return JSONResponse({
+            "success": True,
+            "models": found_models,
+            "count": len(found_models),
+            "search_paths": [str(p) for p in search_paths if p.exists()]
+        })
+
+    except Exception as e:
+        logger.error(f"Error listing models: {e}")
+        return JSONResponse({
+            "success": False,
+            "error": str(e),
+            "models": []
+        }, status_code=500)
 
 
 @app.get("/api/correction-status")

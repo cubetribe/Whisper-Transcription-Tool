@@ -234,7 +234,48 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = JSON.parse(event.data);
             console.log('Progress update received:', data);
 
-            if (data.task === 'transcription') {
+            // Handle correction error events
+            if (data.type === 'correction_error') {
+                console.error('Correction error:', data);
+
+                // Display error message in result area
+                const resultContainer = document.getElementById('result-container');
+                if (resultContainer) {
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'alert alert-warning';
+                    errorDiv.innerHTML = `
+                        <h5><i class="fas fa-exclamation-triangle"></i> Textkorrektur-Warnung</h5>
+                        <p><strong>Fehler:</strong> ${data.error || 'Unbekannter Fehler'}</p>
+                        ${data.error_recommendation ? `<p><strong>Empfehlung:</strong> ${data.error_recommendation}</p>` : ''}
+                        ${data.fallback_available ? '<p><i class="fas fa-info-circle"></i> Die regel-basierte Korrektur wird stattdessen verwendet.</p>' : ''}
+                        <small>Fehlertyp: ${data.error_category || 'unknown'}</small>
+                    `;
+
+                    // Insert error at the beginning of results
+                    if (resultContainer.firstChild) {
+                        resultContainer.insertBefore(errorDiv, resultContainer.firstChild);
+                    } else {
+                        resultContainer.appendChild(errorDiv);
+                    }
+                }
+
+                // Update correction status indicator if visible
+                const statusDiv = document.getElementById('correction-availability');
+                if (statusDiv) {
+                    statusDiv.className = 'status-indicator status-error';
+                    statusDiv.innerHTML = `
+                        <i class="fas fa-times-circle" style="color: red;"></i> Korrektur-Fehler
+                        <div style="font-size: 0.85em; margin-top: 3px;">
+                            ${data.error_category === 'model_missing' ? 'Model nicht gefunden' :
+                              data.error_category === 'model_incompatible' ? 'Model inkompatibel' :
+                              data.error_category === 'insufficient_memory' ? 'Zu wenig Speicher' :
+                              'Fehler aufgetreten'}
+                        </div>
+                    `;
+                }
+            }
+
+            if (data.task === 'transcription' || data.task === 'correction') {
                 // Use new progress manager if available
                 if (window.progressManager) {
                     const eta = window.progressManager.calculateETA(data.progress, window.progressManager.startTime);
@@ -1091,6 +1132,102 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 500);
         }
     });
+
+    // Text Correction Status Check
+    function checkCorrectionStatus() {
+        const statusDiv = document.getElementById('correction-availability');
+        const ramInfo = document.getElementById('ram-info');
+
+        if (!statusDiv) return;
+
+        fetch('/api/correction-status')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    let statusHTML = '';
+                    let statusClass = '';
+
+                    // Determine status icon and message based on overall status
+                    if (data.status === 'ready') {
+                        statusClass = 'status-ready';
+                        statusHTML = '<i class="fas fa-check-circle" style="color: green;"></i> LLM-Korrektur bereit';
+                    } else if (data.status === 'model_missing') {
+                        statusClass = 'status-warning';
+                        statusHTML = '<i class="fas fa-exclamation-triangle" style="color: orange;"></i> Model nicht gefunden';
+                    } else if (data.status === 'model_incompatible') {
+                        statusClass = 'status-error';
+                        statusHTML = '<i class="fas fa-times-circle" style="color: red;"></i> Model inkompatibel';
+                    } else if (data.status === 'insufficient_memory') {
+                        statusClass = 'status-warning';
+                        statusHTML = '<i class="fas fa-memory" style="color: orange;"></i> Zu wenig Speicher';
+                    } else if (data.status === 'llm_unavailable') {
+                        statusClass = 'status-warning';
+                        statusHTML = '<i class="fas fa-exclamation-circle" style="color: orange;"></i> LLM nicht verfügbar';
+                    } else {
+                        statusClass = 'status-error';
+                        statusHTML = '<i class="fas fa-times-circle" style="color: red;"></i> Fehler';
+                    }
+
+                    // Add recommendation if available
+                    if (data.recommendation) {
+                        statusHTML += `<div style="font-size: 0.9em; margin-top: 5px;">${data.recommendation}</div>`;
+                    }
+
+                    // Show if fallback is active
+                    if (data.fallback_active) {
+                        statusHTML += '<div style="font-size: 0.85em; color: #666; margin-top: 3px;">➜ Regel-basierte Korrektur aktiv</div>';
+                    }
+
+                    statusDiv.className = 'status-indicator ' + statusClass;
+                    statusDiv.innerHTML = statusHTML;
+
+                    // Update RAM info
+                    if (ramInfo) {
+                        const availableRAM = data.available_ram_gb || 0;
+                        const minRequired = data.min_required_ram_gb || 4;
+                        const ramColor = availableRAM >= minRequired ? 'green' : 'orange';
+                        ramInfo.innerHTML = `<small>Verfügbar: ${availableRAM.toFixed(1)} GB / Benötigt: ${minRequired} GB</small>`;
+                        ramInfo.style.color = ramColor;
+                    }
+                } else {
+                    statusDiv.className = 'status-indicator status-error';
+                    statusDiv.innerHTML = '<i class="fas fa-times-circle" style="color: red;"></i> Fehler beim Abrufen des Status';
+                }
+            })
+            .catch(error => {
+                console.error('Error checking correction status:', error);
+                statusDiv.className = 'status-indicator status-error';
+                statusDiv.innerHTML = '<i class="fas fa-times-circle" style="color: red;"></i> Verbindungsfehler';
+            });
+    }
+
+    // Enable/disable correction options based on checkbox
+    const correctionCheckbox = document.getElementById('enable-correction');
+    const correctionOptions = document.getElementById('correction-options');
+
+    if (correctionCheckbox && correctionOptions) {
+        correctionCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                correctionOptions.style.display = 'block';
+                checkCorrectionStatus(); // Check status when enabled
+            } else {
+                correctionOptions.style.display = 'none';
+            }
+        });
+
+        // Check status on page load if correction is enabled
+        if (correctionCheckbox.checked) {
+            correctionOptions.style.display = 'block';
+            checkCorrectionStatus();
+        }
+    }
+
+    // Check correction status periodically if options are visible
+    setInterval(function() {
+        if (correctionOptions && correctionOptions.style.display !== 'none') {
+            checkCorrectionStatus();
+        }
+    }, 30000); // Check every 30 seconds
 });
 </script>
 {% endblock %}

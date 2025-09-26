@@ -76,7 +76,7 @@ def get_ffmpeg_path(config: Optional[Dict] = None) -> str:
         if os.path.exists(location) and os.access(location, os.X_OK):
             return location
     
-    raise DependencyError("FFmpeg not found. Please install FFmpeg or specify the binary path in the configuration.")
+    raise DependencyError(dependency="FFmpeg")
 
 
 def get_ffmpeg_version(ffmpeg_path: str) -> Optional[str]:
